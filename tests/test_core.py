@@ -13,6 +13,7 @@ from scenemill.adapters.rosbag import sanitize_topic
 from scenemill.config import deep_merge, load_config
 from scenemill.pipeline import run_pipeline
 from scenemill.runtime.oom_retry import looks_like_oom
+from scenemill.stages import train as train_stage
 
 
 def write_aligned_member(archive: zipfile.ZipFile, filename: str, data: bytes) -> None:
@@ -34,7 +35,44 @@ class SceneMillCoreTests(unittest.TestCase):
 
     def test_oom_detection(self) -> None:
         self.assertTrue(looks_like_oom("torch.OutOfMemoryError: CUDA out of memory"))
+        self.assertTrue(looks_like_oom("/tmp/run.sh: line 3: 225139 已杀死 python train.py"))
+        self.assertTrue(looks_like_oom("Killed", 1))
+        self.assertTrue(looks_like_oom("", 137))
+        self.assertTrue(looks_like_oom("", -9))
         self.assertFalse(looks_like_oom("File not found"))
+
+    def test_train_failure_does_not_require_checkpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workspace = root / "workspace"
+
+            def fake_run_command(cmd, *, cwd, log_path, dry_run=False, env_overrides=None):
+                return train_stage.CommandResult(cmd=cmd, returncode=1, stdout="已杀死", log_path=log_path)
+
+            def fail_find_latest_checkpoint(run_root):
+                raise AssertionError("find_latest_checkpoint should not run after train failure")
+
+            original_run_command = train_stage.run_command
+            original_find_latest_checkpoint = train_stage.threedgrut.find_latest_checkpoint
+            train_stage.run_command = fake_run_command
+            train_stage.threedgrut.find_latest_checkpoint = fail_find_latest_checkpoint
+            try:
+                result, checkpoint = train_stage.run_train(
+                    config={
+                        "trainer": {"backend": "3dgrut", "experiment_name": "scene"},
+                        "runtime": {"run_dir": str(root / "runs"), "grut_repo": str(root)},
+                    },
+                    dataset_root=root / "dataset",
+                    workspace=workspace,
+                    dry_run=False,
+                )
+            finally:
+                train_stage.run_command = original_run_command
+                train_stage.threedgrut.find_latest_checkpoint = original_find_latest_checkpoint
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIsNone(checkpoint)
+            self.assertEqual(result.log_path.name, "train_3dgrut_dataset.log")
 
     def test_deep_merge(self) -> None:
         merged = deep_merge({"a": {"b": 1, "c": 2}}, {"a": {"b": 3}})
@@ -141,4 +179,3 @@ class SceneMillCoreTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

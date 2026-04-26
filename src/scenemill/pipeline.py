@@ -77,7 +77,7 @@ def run_pipeline(
                 "geometry",
                 {"returncode": geometry_result.returncode, "log": str(geometry_result.log_path), "frame_step": frame_step},
             )
-            if looks_like_oom(last_error):
+            if looks_like_oom(last_error, geometry_result.returncode):
                 append_retry(manifest, {"stage": "geometry", "frame_step": frame_step, "reason": "oom"})
                 write_manifest(manifest, _manifest_path(workspace_path))
                 continue
@@ -105,20 +105,25 @@ def run_pipeline(
             {
                 "returncode": train_result.returncode,
                 "log": str(train_result.log_path),
-                "checkpoint": str(checkpoint),
+                "checkpoint": str(checkpoint) if checkpoint else None,
                 "frame_step": frame_step,
             },
         )
-        set_artifact(manifest, "checkpoint", str(checkpoint))
         write_manifest(manifest, _manifest_path(workspace_path))
 
         if train_result.returncode != 0:
             last_error = train_result.stdout
-            if looks_like_oom(last_error):
+            if looks_like_oom(last_error, train_result.returncode):
                 append_retry(manifest, {"stage": "train", "frame_step": frame_step, "reason": "oom"})
                 write_manifest(manifest, _manifest_path(workspace_path))
                 continue
             raise RuntimeError(f"Train stage failed. Inspect {train_result.log_path}")
+
+        if checkpoint is None:
+            raise RuntimeError(f"Train stage finished without a checkpoint. Inspect {train_result.log_path}")
+
+        set_artifact(manifest, "checkpoint", str(checkpoint))
+        write_manifest(manifest, _manifest_path(workspace_path))
 
         export_results = run_exports(
             config=config,
