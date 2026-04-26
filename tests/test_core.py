@@ -1,0 +1,144 @@
+from __future__ import annotations
+
+import tempfile
+import unittest
+import zipfile
+from pathlib import Path
+
+import yaml
+
+from scenemill.adapters.colmap import prepare_sampled_dataset, validate_colmap_dataset
+from scenemill.adapters.isaac_usd import validate_usdz_alignment
+from scenemill.adapters.rosbag import sanitize_topic
+from scenemill.config import deep_merge, load_config
+from scenemill.pipeline import run_pipeline
+from scenemill.runtime.oom_retry import looks_like_oom
+
+
+def write_aligned_member(archive: zipfile.ZipFile, filename: str, data: bytes) -> None:
+    base_offset = archive.fp.tell() + 30 + len(filename.encode())
+    extra_len = (-base_offset) % 64
+    if 0 < extra_len < 4:
+        extra_len += 64
+    info = zipfile.ZipInfo(filename)
+    info.compress_type = zipfile.ZIP_STORED
+    if extra_len:
+        info.extra = (0xFFFF).to_bytes(2, "little") + (extra_len - 4).to_bytes(2, "little") + b"\0" * (extra_len - 4)
+    archive.writestr(info, data)
+
+
+class SceneMillCoreTests(unittest.TestCase):
+    def test_sanitize_topic(self) -> None:
+        self.assertEqual(sanitize_topic("/camera/color/image_raw"), "camera_color_image_raw")
+        self.assertEqual(sanitize_topic("/"), "root")
+
+    def test_oom_detection(self) -> None:
+        self.assertTrue(looks_like_oom("torch.OutOfMemoryError: CUDA out of memory"))
+        self.assertFalse(looks_like_oom("File not found"))
+
+    def test_deep_merge(self) -> None:
+        merged = deep_merge({"a": {"b": 1, "c": 2}}, {"a": {"b": 3}})
+        self.assertEqual(merged, {"a": {"b": 3, "c": 2}})
+
+    def test_sampled_dataset(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            images = root / "images"
+            images.mkdir()
+            for index in range(5):
+                (images / f"{index:03d}.png").write_bytes(b"fake")
+
+            dataset = prepare_sampled_dataset(images, root / "workspace", 2)
+            self.assertEqual(dataset.image_count, 3)
+            self.assertTrue((dataset.images_dir / "000.png").is_symlink())
+
+    def test_colmap_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            dataset = Path(tmp)
+            (dataset / "images").mkdir()
+            sparse = dataset / "sparse" / "0"
+            sparse.mkdir(parents=True)
+            for name in ["cameras.txt", "images.txt", "points3D.txt"]:
+                (sparse / name).write_text("", encoding="utf-8")
+            result = validate_colmap_dataset(dataset)
+            self.assertTrue(result["ok"])
+
+    def test_usdz_alignment_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            aligned = Path(tmp) / "aligned.usdz"
+            with zipfile.ZipFile(aligned, "w", compression=zipfile.ZIP_STORED) as archive:
+                write_aligned_member(archive, "default.usda", b"#usda 1.0\n")
+                write_aligned_member(archive, "gaussians.usdc", b"data")
+            self.assertTrue(validate_usdz_alignment(aligned)["ok"])
+
+            unaligned = Path(tmp) / "unaligned.usdz"
+            with zipfile.ZipFile(unaligned, "w", compression=zipfile.ZIP_STORED) as archive:
+                archive.writestr("default.usda", b"#usda 1.0\n")
+            self.assertFalse(validate_usdz_alignment(unaligned)["ok"])
+
+    def test_pipeline_dry_run_writes_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            images = root / "images"
+            images.mkdir()
+            for index in range(3):
+                (images / f"{index:03d}.png").write_bytes(b"fake")
+
+            config = root / "config.yaml"
+            config.write_text(
+                yaml.safe_dump(
+                    {
+                        "input": {"kind": "images", "path": str(images)},
+                        "geometry": {
+                            "backend": "da3",
+                            "model": "depth-anything/DA3NESTED-GIANT-LARGE-1.1",
+                            "process_res": 504,
+                            "process_res_method": "upper_bound_resize",
+                            "use_ray_pose": True,
+                        },
+                        "trainer": {
+                            "backend": "3dgrut",
+                            "config_name": "apps/colmap_3dgut.yaml",
+                            "experiment_name": "dry_scene",
+                            "dataset_downsample_factor": 1,
+                            "n_iterations": 1,
+                        },
+                        "export": {"enabled": True, "formats": ["nurec", "lightfield"], "output_dir": None},
+                        "runtime": {
+                            "workspace": str(root / "workspace"),
+                            "da3_env": "da3_recon",
+                            "grut_env": "3dgrut_recon",
+                            "da3_repo": "third_party/Depth-Anything-3",
+                            "grut_repo": "third_party/3dgrut",
+                            "cuda": {
+                                "home": "/usr/local/cuda-12.4",
+                                "arch_list": "8.6",
+                                "cc": "/usr/bin/gcc-11",
+                                "cxx": "/usr/bin/g++-11",
+                            },
+                        },
+                        "retry": {"frame_steps": [2]},
+                        "validation": {"enabled": True},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            manifest = run_pipeline(config_path=config, dry_run=True)
+            manifest_path = root / "workspace" / "scene_manifest.yaml"
+            self.assertTrue(manifest_path.exists())
+            self.assertEqual(manifest["stages"]["preprocess"]["sampled_images"], 2)
+            self.assertIn("exports", manifest["artifacts"])
+
+    def test_load_config_overrides(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.yaml"
+            config.write_text("input: {kind: images}\nruntime: {}\n", encoding="utf-8")
+            loaded = load_config(config, input_path=Path(tmp) / "images", workspace=Path(tmp) / "ws")
+            self.assertTrue(str(loaded["input"]["path"]).endswith("images"))
+            self.assertTrue(str(loaded["runtime"]["workspace"]).endswith("ws"))
+
+
+if __name__ == "__main__":
+    unittest.main()
+

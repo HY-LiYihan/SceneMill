@@ -1,0 +1,47 @@
+project:
+  name: SceneMill
+
+input:
+  kind: images
+  path:
+
+geometry:
+  backend: vggt
+  model:
+  repo:
+  export_format: colmap
+
+trainer:
+  backend: 3dgrut
+  config_name: apps/colmap_3dgut.yaml
+  experiment_name: vggt_3dgut_scene
+  dataset_downsample_factor: 1
+  n_iterations: 30000
+
+export:
+  enabled: true
+  formats: [nurec, lightfield]
+  output_dir:
+
+runtime:
+  workspace: runs/images_vggt_3dgut_isaac
+  da3_env: da3_recon
+  grut_env: 3dgrut_recon
+  isaac_env: env_isaacsim
+  da3_repo: third_party/Depth-Anything-3
+  grut_repo: third_party/3dgrut
+  run_dir:
+  cuda:
+    home: /usr/local/cuda-12.4
+    arch_list: "8.6"
+    cc: /usr/bin/gcc-11
+    cxx: /usr/bin/g++-11
+
+retry:
+  frame_steps: [1, 2, 5, 10, 15, 20]
+
+validation:
+  enabled: true
+  require_usdz_alignment: true
+  require_isaac_prims: true
+

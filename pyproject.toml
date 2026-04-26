@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scenemill"
+version = "0.1.0"
+description = "Robot/Isaac-first reconstruction pipeline from ROS bags or images to COLMAP datasets, Gaussian scenes, and Isaac-ready USDZ assets."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "PyYAML>=6.0",
+  "numpy>=1.23",
+  "Pillow>=9.0",
+]
+
+[project.optional-dependencies]
+ros = ["rosbags>=0.10"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+scenemill = "scenemill.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

@@ -1,0 +1,56 @@
+from __future__ import annotations
+
+import os
+import shlex
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass(slots=True)
+class CommandResult:
+    cmd: list[str]
+    returncode: int
+    stdout: str
+    log_path: Path
+
+
+def printable_command(cmd: list[str]) -> str:
+    return " ".join(shlex.quote(part) for part in cmd)
+
+
+def run_command(
+    cmd: list[str],
+    *,
+    cwd: Path | None,
+    log_path: Path,
+    dry_run: bool = False,
+    env_overrides: dict[str, str] | None = None,
+) -> CommandResult:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    printable = printable_command(cmd)
+    print(f"\n$ {printable}")
+    print(f"log: {log_path}")
+
+    if dry_run:
+        log_path.write_text(f"[dry-run]\n{printable}\n", encoding="utf-8")
+        return CommandResult(cmd=cmd, returncode=0, stdout="", log_path=log_path)
+
+    env = os.environ.copy()
+    if env_overrides:
+        env.update(env_overrides)
+
+    proc = subprocess.run(
+        cmd,
+        cwd=str(cwd) if cwd else None,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    stdout = proc.stdout or ""
+    log_path.write_text(stdout, encoding="utf-8")
+    sys.stdout.write(stdout)
+    return CommandResult(cmd=cmd, returncode=proc.returncode, stdout=stdout, log_path=log_path)
+
