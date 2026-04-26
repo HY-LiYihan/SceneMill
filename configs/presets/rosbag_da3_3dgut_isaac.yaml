@@ -20,7 +20,9 @@ trainer:
   backend: 3dgrut
   config_name: apps/colmap_3dgut.yaml
   experiment_name: da3_3dgut_scene
-  dataset_downsample_factor: 1
+  dataset_downsample_factor: 4
+  max_colmap_points: 200000
+  point_sample_seed: 42
   n_iterations: 30000
 
 export:
@@ -49,4 +51,3 @@ validation:
   enabled: true
   require_usdz_alignment: true
   require_isaac_prims: true
-

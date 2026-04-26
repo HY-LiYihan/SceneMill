@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from scenemill.adapters.colmap import validate_colmap_dataset
+from scenemill.adapters.colmap import prepare_colmap_training_dataset, validate_colmap_dataset
 from scenemill.config import get_config, load_config, parse_int_list
 from scenemill.runtime.gpu import query_nvidia_smi
 from scenemill.runtime.oom_retry import looks_like_oom
@@ -86,6 +86,10 @@ def run_pipeline(
 
         if not dry_run:
             validate_colmap_dataset(dataset.root)
+            train_dataset_root, train_prep = prepare_colmap_training_dataset(dataset.root, workspace_path, config)
+        else:
+            train_dataset_root = dataset.root
+            train_prep = {"dataset_root": str(dataset.root), "dry_run": True}
         update_stage(
             manifest,
             "geometry",
@@ -96,9 +100,15 @@ def run_pipeline(
                 "frame_step": frame_step,
             },
         )
+        update_stage(manifest, "train_prepare", train_prep)
         write_manifest(manifest, _manifest_path(workspace_path))
 
-        train_result, checkpoint = run_train(config=config, dataset_root=dataset.root, workspace=workspace_path, dry_run=dry_run)
+        train_result, checkpoint = run_train(
+            config=config,
+            dataset_root=train_dataset_root,
+            workspace=workspace_path,
+            dry_run=dry_run,
+        )
         update_stage(
             manifest,
             "train",
@@ -128,7 +138,7 @@ def run_pipeline(
         export_results = run_exports(
             config=config,
             checkpoint=checkpoint,
-            dataset_root=dataset.root,
+            dataset_root=train_dataset_root,
             workspace=workspace_path,
             dry_run=dry_run,
         )
@@ -148,7 +158,7 @@ def run_pipeline(
         if not dry_run and get_config(config, "validation.enabled", True):
             validation = validate_outputs(
                 images_dir=frames.images_dir,
-                dataset_root=dataset.root,
+                dataset_root=train_dataset_root,
                 usdz_paths=[Path(path) for path in export_artifacts.values()],
             )
             manifest["validation"] = validation

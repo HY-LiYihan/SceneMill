@@ -1,13 +1,21 @@
 from __future__ import annotations
 
+import struct
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
 
+from PIL import Image
 import yaml
 
-from scenemill.adapters.colmap import prepare_sampled_dataset, validate_colmap_dataset
+from scenemill.adapters.colmap import (
+    count_colmap_points,
+    prepare_colmap_training_dataset,
+    prepare_sampled_dataset,
+    subsample_colmap_points,
+    validate_colmap_dataset,
+)
 from scenemill.adapters.isaac_usd import validate_usdz_alignment
 from scenemill.adapters.rosbag import sanitize_topic
 from scenemill.config import deep_merge, load_config
@@ -100,6 +108,51 @@ class SceneMillCoreTests(unittest.TestCase):
                 (sparse / name).write_text("", encoding="utf-8")
             result = validate_colmap_dataset(dataset)
             self.assertTrue(result["ok"])
+
+    def test_colmap_point_subsampling_binary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sparse = Path(tmp) / "sparse" / "0"
+            sparse.mkdir(parents=True)
+            points = sparse / "points3D.bin"
+            with points.open("wb") as fid:
+                fid.write(struct.pack("<Q", 5))
+                for point_id in range(1, 6):
+                    fid.write(struct.pack("<QdddBBBd", point_id, float(point_id), 0.0, 0.0, 1, 2, 3, 0.1))
+                    fid.write(struct.pack("<Q", 0))
+
+            result = subsample_colmap_points(Path(tmp), max_points=2, seed=7)
+            self.assertTrue(result["enabled"])
+            self.assertEqual(result["original"], 5)
+            self.assertEqual(count_colmap_points(Path(tmp)), 2)
+
+    def test_prepare_training_dataset_downsamples_images_and_points(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dataset = root / "dataset"
+            images = dataset / "images"
+            sparse = dataset / "sparse" / "0"
+            images.mkdir(parents=True)
+            sparse.mkdir(parents=True)
+            Image.new("RGB", (8, 4), color=(255, 0, 0)).save(images / "000.jpg")
+            for name in ["cameras.bin", "images.bin"]:
+                (sparse / name).write_bytes(b"fake")
+            with (sparse / "points3D.bin").open("wb") as fid:
+                fid.write(struct.pack("<Q", 3))
+                for point_id in range(1, 4):
+                    fid.write(struct.pack("<QdddBBBd", point_id, float(point_id), 0.0, 0.0, 1, 2, 3, 0.1))
+                    fid.write(struct.pack("<Q", 0))
+
+            train_root, info = prepare_colmap_training_dataset(
+                dataset,
+                root / "workspace",
+                {"trainer": {"dataset_downsample_factor": 2, "max_colmap_points": 2, "point_sample_seed": 1}},
+            )
+
+            self.assertTrue((train_root / "images_2" / "000.jpg").exists())
+            with Image.open(train_root / "images_2" / "000.jpg") as image:
+                self.assertEqual(image.size, (4, 2))
+            self.assertEqual(count_colmap_points(train_root), 2)
+            self.assertEqual(info["point_subsample"]["current"], 2)
 
     def test_usdz_alignment_validation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
