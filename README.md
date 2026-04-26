@@ -21,6 +21,27 @@ Related ecosystems:
 
 ## Quick Start
 
+Clone with third-party submodules:
+
+```bash
+git clone --recursive git@github.com:HY-LiYihan/SceneMill.git
+cd SceneMill
+```
+
+If you cloned without `--recursive`:
+
+```bash
+git submodule update --init --recursive
+```
+
+Apply the compatibility patches used by the current SceneMill workflow:
+
+```bash
+./scripts/apply_third_party_patches.sh
+```
+
+The patches currently fix DA3 CLI argument naming and make 3DGUT USDZ packages 64-byte aligned for Isaac/Kit.
+
 Use the DA3 + 3DGUT + Isaac preset on an image directory:
 
 ```bash
@@ -100,4 +121,3 @@ third_party/        External DA3 and 3DGUT checkouts
 data/               Local data scratch
 runs/               SceneMill run outputs
 ```
-

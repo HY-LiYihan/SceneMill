@@ -1,0 +1,50 @@
+diff --git a/threedgrut/export/usd/stage_utils.py b/threedgrut/export/usd/stage_utils.py
+index 9b70bcf..85d7ae8 100644
+--- a/threedgrut/export/usd/stage_utils.py
++++ b/threedgrut/export/usd/stage_utils.py
+@@ -40,6 +40,27 @@ DEFAULT_FRAME_RATE = 24.0
+ USD_WORLD_PATH = "/World"
+ 
+ 
++def _write_usdz_aligned(zip_file: zipfile.ZipFile, filename: str, data: Union[str, bytes]) -> None:
++    """Write an uncompressed USDZ member with 64-byte aligned file data."""
++    if isinstance(data, str):
++        data = data.encode("utf-8")
++
++    filename_bytes = filename.encode("utf-8")
++    header_offset = zip_file.fp.tell()
++    base_data_offset = header_offset + 30 + len(filename_bytes)
++    extra_len = (-base_data_offset) % 64
++    if 0 < extra_len < 4:
++        extra_len += 64
++
++    info = zipfile.ZipInfo(filename)
++    info.compress_type = zipfile.ZIP_STORED
++    info.external_attr = 0o644 << 16
++    if extra_len:
++        info.extra = (0xFFFF).to_bytes(2, "little") + (extra_len - 4).to_bytes(2, "little") + b"\0" * (extra_len - 4)
++
++    zip_file.writestr(info, data)
++
++
+ @dataclass(kw_only=True)
+ class NamedUSDStage:
+     """Container for a USD stage with an associated filename."""
+@@ -59,7 +80,7 @@ class NamedUSDStage:
+         self.stage.GetRootLayer().Export(temp_file_path)
+         with open(temp_file_path, "rb") as file:
+             usd_data = file.read()
+-        zip_file.writestr(self.filename, usd_data)
++        _write_usdz_aligned(zip_file, self.filename, usd_data)
+         os.unlink(temp_file_path)
+ 
+ 
+@@ -79,7 +100,7 @@ class NamedSerialized:
+ 
+     def save_to_zip(self, zip_file: zipfile.ZipFile):
+         """Save the serialized data to a zip file."""
+-        zip_file.writestr(self.filename, self.serialized)
++        _write_usdz_aligned(zip_file, self.filename, self.serialized)
+ 
+ 
+ def initialize_usd_stage(up_axis: str = "Y") -> Usd.Stage:

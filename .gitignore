@@ -12,8 +12,6 @@ runs/*
 !runs/.gitkeep
 data/*
 !data/.gitkeep
-third_party/*
-!third_party/.gitkeep
 aaa/
 
 # Local one-off scripts superseded by the SceneMill package.
