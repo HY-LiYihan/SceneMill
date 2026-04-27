@@ -89,14 +89,14 @@ python3 -m pip install -e ".[docs]"
 mkdocs serve
 ```
 
-Documentation is bilingual under `docs/en/` and `docs/zh/`. GitHub Pages is built by `.github/workflows/docs.yml`.
+Documentation is bilingual under `docs/en/` and `docs/zh/` and uses `mkdocs-static-i18n` for the top-bar language switcher. GitHub Pages is built by `.github/workflows/docs.yml`.
 
 ## Repository Layout
 
 ```text
 configs/       YAML configs and presets
 docs/          MkDocs documentation site
-patches/       third-party compatibility patches
+patches/       optional legacy third-party patches, not applied by default
 scripts/       local setup, doctor, example, and cleanup scripts
 src/           SceneMill Python package
 tests/         unit tests

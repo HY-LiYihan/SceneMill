@@ -31,15 +31,15 @@ check_conda_env() {
   fi
 }
 
-patch_state() {
+check_submodule_clean() {
   local repo="$1"
-  local patch="$2"
-  if git -C "${repo}" apply --reverse --check "${ROOT_DIR}/${patch}" >/dev/null 2>&1; then
-    ok "patch applied: ${patch}"
-  elif git -C "${repo}" apply --check "${ROOT_DIR}/${patch}" >/dev/null 2>&1; then
-    warn "patch not applied yet: ${patch}"
+  local status
+  status="$(git -C "${repo}" status --short --untracked-files=no 2>/dev/null || true)"
+  if [[ -z "${status}" ]]; then
+    ok "submodule clean: ${repo}"
   else
-    warn "patch state unclear: ${patch}"
+    warn "submodule has tracked local changes: ${repo}"
+    printf "%s\n" "${status}"
   fi
 }
 
@@ -66,10 +66,10 @@ check_conda_env env_isaacsim
 [[ -d /usr/local/cuda-12.4 ]] && ok "CUDA found: /usr/local/cuda-12.4" || warn "CUDA 12.4 not found at /usr/local/cuda-12.4"
 
 if [[ -d third_party/Depth-Anything-3/.git ]]; then
-  patch_state third_party/Depth-Anything-3 patches/third_party/depth-anything-3-cli-ref-view-strategy.patch
+  check_submodule_clean third_party/Depth-Anything-3
 fi
 if [[ -d third_party/3dgrut/.git ]]; then
-  patch_state third_party/3dgrut patches/third_party/3dgrut-usdz-64-byte-alignment.patch
+  check_submodule_clean third_party/3dgrut
 fi
 
 echo "== SceneMill CLI Doctor =="

@@ -17,7 +17,7 @@ def build_images_to_colmap_command(
 ) -> list[str]:
     cmd = [
         "da3",
-        "images",
+        "auto",
         str(images_dir),
         "--model-dir",
         model,
@@ -36,4 +36,3 @@ def build_images_to_colmap_command(
     if use_ray_pose:
         cmd.append("--use-ray-pose")
     return conda_run(conda_env, cmd)
-

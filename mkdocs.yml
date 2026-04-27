@@ -22,6 +22,37 @@ theme:
 
 plugins:
   - search
+  - i18n:
+      docs_structure: folder
+      fallback_to_default: true
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - locale: en
+          name: English
+          default: true
+          build: true
+          site_name: SceneMill
+          site_description: Robot and Isaac-first scene reconstruction pipeline.
+        - locale: zh
+          name: 简体中文
+          build: true
+          site_name: SceneMill
+          site_description: 面向机器人和 Isaac 的场景重建 pipeline。
+          theme:
+            language: zh
+          nav_translations:
+            Overview: 项目介绍
+            Installation: 安装
+            Quickstart: 快速开始
+            CLI Reference: CLI 参考
+            Pipeline Concepts: Pipeline 概念
+            Presets: 配置预设
+            DA3 + 3DGUT + Isaac: DA3 + 3DGUT + Isaac
+            ROS Bag Ingest: ROS Bag 导入
+            Isaac USDZ Validation: Isaac USDZ 验证
+            Troubleshooting: 常见问题
+            Development: 开发指南
   - git-revision-date-localized:
       enabled: !ENV [SCENEMILL_DOCS_GIT_DATES, false]
       enable_creation_date: true
@@ -39,28 +70,14 @@ markdown_extensions:
       anchor_linenums: true
 
 nav:
-  - Home: index.md
-  - English:
-      - Overview: en/index.md
-      - Installation: en/installation.md
-      - Quickstart: en/quickstart.md
-      - CLI Reference: en/cli.md
-      - Pipeline Concepts: en/concepts.md
-      - Presets: en/presets.md
-      - DA3 + 3DGUT + Isaac: en/workflows/da3-3dgut-isaac.md
-      - ROS Bag Ingest: en/rosbag.md
-      - Isaac USDZ Validation: en/isaac-validation.md
-      - Troubleshooting: en/troubleshooting.md
-      - Development: en/development.md
-  - 中文:
-      - 项目介绍: zh/index.md
-      - 安装: zh/installation.md
-      - 快速开始: zh/quickstart.md
-      - CLI 参考: zh/cli.md
-      - Pipeline 概念: zh/concepts.md
-      - 配置预设: zh/presets.md
-      - DA3 + 3DGUT + Isaac: zh/workflows/da3-3dgut-isaac.md
-      - ROS Bag 导入: zh/rosbag.md
-      - Isaac USDZ 验证: zh/isaac-validation.md
-      - 常见问题: zh/troubleshooting.md
-      - 开发指南: zh/development.md
+  - Overview: index.md
+  - Installation: installation.md
+  - Quickstart: quickstart.md
+  - CLI Reference: cli.md
+  - Pipeline Concepts: concepts.md
+  - Presets: presets.md
+  - DA3 + 3DGUT + Isaac: workflows/da3-3dgut-isaac.md
+  - ROS Bag Ingest: rosbag.md
+  - Isaac USDZ Validation: isaac-validation.md
+  - Troubleshooting: troubleshooting.md
+  - Development: development.md

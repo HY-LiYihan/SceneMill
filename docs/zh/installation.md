@@ -21,7 +21,7 @@ SceneMill 首版优先适配当前本机 conda/CUDA/Isaac 工作流：
 ./scripts/install_local.sh
 ```
 
-脚本会做 editable install、安装开发/文档依赖、初始化 submodules，并应用当前 third-party 兼容补丁。
+脚本会做 editable install、安装开发/文档依赖并初始化 submodules。`third_party/` 会保持干净；SceneMill 会在自己的 wrapper 和导出后处理中处理兼容问题。
 
 ## 默认环境
 

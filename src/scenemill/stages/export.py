@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from scenemill.adapters import threedgrut
+from scenemill.adapters.isaac_usd import rewrite_usdz_alignment
 from scenemill.registry import EXPORT_FORMATS
 from scenemill.runtime.subprocess import CommandResult, run_command
 
@@ -41,12 +42,16 @@ def run_exports(
             export_format=script_format,
             config=config,
         )
-        results[fmt] = run_command(
+        result = run_command(
             cmd,
             cwd=grut_repo,
             log_path=workspace / "logs" / f"export_{fmt}.log",
             dry_run=dry_run,
             env_overrides=threedgrut.cuda_env_overrides(config),
         )
+        if result.returncode == 0 and not dry_run and output.exists():
+            alignment = rewrite_usdz_alignment(output)
+            if not alignment["ok"]:
+                raise RuntimeError(f"USDZ alignment failed after rewrite: {output}")
+        results[fmt] = result
     return results
-

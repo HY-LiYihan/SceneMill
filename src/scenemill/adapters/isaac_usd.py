@@ -5,6 +5,47 @@ from pathlib import Path
 from typing import Any
 
 
+def _write_aligned_member(
+    archive: zipfile.ZipFile,
+    filename: str,
+    data: bytes,
+    source_info: zipfile.ZipInfo | None = None,
+) -> None:
+    filename_bytes = filename.encode("utf-8")
+    base_offset = archive.fp.tell() + 30 + len(filename_bytes)
+    extra_len = (-base_offset) % 64
+    if 0 < extra_len < 4:
+        extra_len += 64
+
+    info = zipfile.ZipInfo(filename)
+    info.compress_type = zipfile.ZIP_STORED
+    info.external_attr = 0o644 << 16
+    if source_info:
+        info.date_time = source_info.date_time
+        info.comment = source_info.comment
+        info.external_attr = source_info.external_attr
+        info.create_system = source_info.create_system
+    if extra_len:
+        info.extra = (0xFFFF).to_bytes(2, "little") + (extra_len - 4).to_bytes(2, "little") + b"\0" * (extra_len - 4)
+
+    archive.writestr(info, data)
+
+
+def rewrite_usdz_alignment(path: Path) -> dict[str, Any]:
+    members: list[tuple[zipfile.ZipInfo, bytes]] = []
+    with zipfile.ZipFile(path, "r") as source:
+        for info in source.infolist():
+            members.append((info, source.read(info.filename)))
+
+    tmp_path = path.with_name(f"{path.name}.aligned.tmp")
+    with zipfile.ZipFile(tmp_path, "w", compression=zipfile.ZIP_STORED) as target:
+        for info, data in members:
+            _write_aligned_member(target, info.filename, data, info)
+
+    tmp_path.replace(path)
+    return validate_usdz_alignment(path)
+
+
 def usdz_member_offsets(path: Path) -> list[dict[str, Any]]:
     with zipfile.ZipFile(path) as archive:
         rows = []
@@ -46,4 +87,3 @@ def inspect_usd_prims(path: Path) -> dict[str, Any]:
         "has_nurec": "OmniNuRecFieldAsset" in types,
         "has_lightfield": "ParticleField3DGaussianSplat" in types,
     }
-

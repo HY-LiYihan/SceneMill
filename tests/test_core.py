@@ -16,7 +16,8 @@ from scenemill.adapters.colmap import (
     subsample_colmap_points,
     validate_colmap_dataset,
 )
-from scenemill.adapters.isaac_usd import validate_usdz_alignment
+from scenemill.adapters.da3 import build_images_to_colmap_command
+from scenemill.adapters.isaac_usd import rewrite_usdz_alignment, validate_usdz_alignment
 from scenemill.adapters.rosbag import sanitize_topic
 from scenemill.config import deep_merge, load_config
 from scenemill.pipeline import run_pipeline
@@ -98,6 +99,20 @@ class SceneMillCoreTests(unittest.TestCase):
             self.assertEqual(dataset.image_count, 3)
             self.assertTrue((dataset.images_dir / "000.png").is_symlink())
 
+    def test_da3_uses_auto_command_to_avoid_upstream_images_cli_bug(self) -> None:
+        cmd = build_images_to_colmap_command(
+            images_dir=Path("/images"),
+            sparse_dir=Path("/sparse/0"),
+            model="model",
+            conda_env="da3_recon",
+            process_res=504,
+            process_res_method="upper_bound_resize",
+            use_ray_pose=True,
+        )
+        self.assertIn("da3", cmd)
+        da3_index = cmd.index("da3")
+        self.assertEqual(cmd[da3_index + 1], "auto")
+
     def test_colmap_validation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             dataset = Path(tmp)
@@ -166,6 +181,17 @@ class SceneMillCoreTests(unittest.TestCase):
             with zipfile.ZipFile(unaligned, "w", compression=zipfile.ZIP_STORED) as archive:
                 archive.writestr("default.usda", b"#usda 1.0\n")
             self.assertFalse(validate_usdz_alignment(unaligned)["ok"])
+
+    def test_usdz_alignment_rewrite(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "scene.usdz"
+            with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("default.usda", b"#usda 1.0\n")
+                archive.writestr("gaussians.usdc", b"data")
+
+            self.assertFalse(validate_usdz_alignment(path)["ok"])
+            self.assertTrue(rewrite_usdz_alignment(path)["ok"])
+            self.assertTrue(validate_usdz_alignment(path)["ok"])
 
     def test_pipeline_dry_run_writes_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

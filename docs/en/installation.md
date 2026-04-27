@@ -21,7 +21,7 @@ SceneMill is designed to run with the existing local conda environments used by 
 ./scripts/install_local.sh
 ```
 
-This installs SceneMill in editable mode with development and documentation dependencies, initializes submodules, and applies the current third-party compatibility patches.
+This installs SceneMill in editable mode with development and documentation dependencies and initializes submodules. `third_party/` is left pristine; SceneMill handles compatibility in its own wrappers and export post-processing.
 
 ## Expected Local Environments
 
