@@ -3,16 +3,30 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+htmlcov/
 .codex/
 .venv/
 build/
 dist/
+site/
 *.egg-info/
 runs/*
 !runs/.gitkeep
 data/*
 !data/.gitkeep
+tmp/
 aaa/
+__MACOSX/
+._*
+.DS_Store
+
+# Local model/tool caches.
+.cache/
+.hf_home/
+huggingface/
+wandb/
+outputs/
 
 # Local one-off scripts superseded by the SceneMill package.
 export_ros1_bag_images.py
@@ -32,6 +46,8 @@ run_da3_3dgrut_pipeline.py
 *.usd
 *.usda
 *.nurec
+*.safetensors
+*.onnx
 
 # Codex local state may be either a file or directory.
 .codex

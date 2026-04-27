@@ -16,11 +16,18 @@ dependencies = [
 
 [project.optional-dependencies]
 ros = ["rosbags>=0.10"]
-dev = ["pytest>=8.0"]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.8",
+]
+docs = [
+  "mkdocs>=1.6",
+  "mkdocs-material>=9.5",
+  "mkdocs-git-revision-date-localized-plugin>=1.3",
+]
 
 [project.scripts]
 scenemill = "scenemill.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-

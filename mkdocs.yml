@@ -1,0 +1,66 @@
+site_name: SceneMill
+site_description: Robot and Isaac-first scene reconstruction pipeline.
+site_url: https://hy-liyihan.github.io/SceneMill/
+repo_name: HY-LiYihan/SceneMill
+repo_url: https://github.com/HY-LiYihan/SceneMill
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+  palette:
+    - scheme: default
+      primary: black
+      accent: amber
+
+plugins:
+  - search
+  - git-revision-date-localized:
+      enabled: !ENV [SCENEMILL_DOCS_GIT_DATES, false]
+      enable_creation_date: true
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+
+nav:
+  - Home: index.md
+  - English:
+      - Overview: en/index.md
+      - Installation: en/installation.md
+      - Quickstart: en/quickstart.md
+      - CLI Reference: en/cli.md
+      - Pipeline Concepts: en/concepts.md
+      - Presets: en/presets.md
+      - DA3 + 3DGUT + Isaac: en/workflows/da3-3dgut-isaac.md
+      - ROS Bag Ingest: en/rosbag.md
+      - Isaac USDZ Validation: en/isaac-validation.md
+      - Troubleshooting: en/troubleshooting.md
+      - Development: en/development.md
+  - 中文:
+      - 项目介绍: zh/index.md
+      - 安装: zh/installation.md
+      - 快速开始: zh/quickstart.md
+      - CLI 参考: zh/cli.md
+      - Pipeline 概念: zh/concepts.md
+      - 配置预设: zh/presets.md
+      - DA3 + 3DGUT + Isaac: zh/workflows/da3-3dgut-isaac.md
+      - ROS Bag 导入: zh/rosbag.md
+      - Isaac USDZ 验证: zh/isaac-validation.md
+      - 常见问题: zh/troubleshooting.md
+      - 开发指南: zh/development.md
