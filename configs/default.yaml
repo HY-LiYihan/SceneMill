@@ -15,6 +15,8 @@ geometry:
   process_res: 504
   process_res_method: upper_bound_resize
   use_ray_pose: true
+  colmap_env:         # conda env name for colmap (used when backend=colmap)
+  colmap_bin: colmap  # colmap executable path or name
 
 trainer:
   backend: 3dgrut

@@ -10,6 +10,8 @@ geometry:
   matcher: sequential
   single_camera: true
   camera_model: SIMPLE_PINHOLE
+  colmap_env:         # conda env name if colmap is not on PATH (e.g. colmap_env)
+  colmap_bin: colmap  # colmap executable path or name
 
 trainer:
   backend: 3dgrut

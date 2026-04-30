@@ -41,16 +41,24 @@ def run_command(
     if env_overrides:
         env.update(env_overrides)
 
-    proc = subprocess.run(
-        cmd,
-        cwd=str(cwd) if cwd else None,
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
-    stdout = proc.stdout or ""
-    log_path.write_text(stdout, encoding="utf-8")
-    sys.stdout.write(stdout)
+    lines: list[str] = []
+    with open(log_path, "w", encoding="utf-8") as log_file:
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(cwd) if cwd else None,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            log_file.write(line)
+            log_file.flush()
+            lines.append(line)
+        proc.wait()
+
+    stdout = "".join(lines)
     return CommandResult(cmd=cmd, returncode=proc.returncode, stdout=stdout, log_path=log_path)
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import shutil
 
 from scenemill.adapters import da3, vggt
 from scenemill.adapters.colmap import build_colmap_commands, validate_colmap_dataset
@@ -20,11 +19,14 @@ def run_geometry(
     geometry = config.get("geometry", {})
     backend = validate_backend(str(geometry.get("backend", "da3")), GEOMETRY_BACKENDS, "geometry")
     if backend == "colmap":
-        if not dry_run and not shutil.which("colmap"):
-            raise RuntimeError("geometry.backend=colmap requires the 'colmap' executable on PATH")
+        colmap_env = str(geometry.get("colmap_env", ""))
+        colmap_bin = str(geometry.get("colmap_bin", "colmap"))
         (dataset.root / "sparse").mkdir(parents=True, exist_ok=True)
         last_result: CommandResult | None = None
-        for index, cmd in enumerate(build_colmap_commands(dataset, config), start=1):
+        for index, cmd in enumerate(
+            build_colmap_commands(dataset, config, colmap_bin=colmap_bin, colmap_env=colmap_env),
+            start=1,
+        ):
             last_result = run_command(
                 cmd,
                 cwd=dataset.root,

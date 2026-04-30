@@ -7,6 +7,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from scenemill.runtime.conda import conda_run
 from scenemill.schemas.artifacts import ColmapDataset
 
 
@@ -197,14 +198,23 @@ def prepare_colmap_training_dataset(dataset_root: Path, workspace: Path, config:
     }
 
 
-def build_colmap_commands(dataset: ColmapDataset, config: dict) -> list[list[str]]:
+def build_colmap_commands(
+    dataset: ColmapDataset,
+    config: dict,
+    *,
+    colmap_bin: str = "colmap",
+    colmap_env: str = "",
+) -> list[list[str]]:
     geometry = config.get("geometry", {})
     database_path = dataset.root / "database.db"
     matcher = str(geometry.get("matcher", "sequential")).lower()
     matcher_command = "sequential_matcher" if matcher == "sequential" else "exhaustive_matcher"
 
+    def wrap(cmd: list[str]) -> list[str]:
+        return conda_run(colmap_env, cmd) if colmap_env else cmd
+
     feature_cmd = [
-        "colmap",
+        colmap_bin,
         "feature_extractor",
         "--database_path",
         str(database_path),
@@ -218,10 +228,10 @@ def build_colmap_commands(dataset: ColmapDataset, config: dict) -> list[list[str
         feature_cmd.extend(["--ImageReader.camera_model", str(camera_model)])
 
     return [
-        feature_cmd,
-        ["colmap", matcher_command, "--database_path", str(database_path)],
-        [
-            "colmap",
+        wrap(feature_cmd),
+        wrap([colmap_bin, matcher_command, "--database_path", str(database_path)]),
+        wrap([
+            colmap_bin,
             "mapper",
             "--database_path",
             str(database_path),
@@ -229,5 +239,5 @@ def build_colmap_commands(dataset: ColmapDataset, config: dict) -> list[list[str
             str(dataset.images_dir),
             "--output_path",
             str(dataset.root / "sparse"),
-        ],
+        ]),
     ]
