@@ -10,10 +10,7 @@
 ## 2. 跑图片主线
 
 ```bash
-./scenemill run \
-  -c configs/presets/images_da3_3dgut_isaac.yaml \
-  --input /path/to/images \
-  --workspace runs/my_scene
+./scenemill run --preset da3 --input /path/to/images --workspace runs/my_scene
 ```
 
 ## 3. 验证输出
@@ -31,9 +28,6 @@
 ## Dry Run
 
 ```bash
-./scenemill run \
-  -c configs/presets/images_da3_3dgut_isaac.yaml \
-  --input /path/to/images \
-  --workspace runs/dry_run \
-  --dry-run
+./scenemill run --preset da3 --input /path/to/images --workspace runs/dry_run --dry-run
 ```
+

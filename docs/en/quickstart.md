@@ -10,10 +10,7 @@
 ## 2. Run the Stable Image Pipeline
 
 ```bash
-./scenemill run \
-  -c configs/presets/images_da3_3dgut_isaac.yaml \
-  --input /path/to/images \
-  --workspace runs/my_scene
+./scenemill run --preset da3 --input /path/to/images --workspace runs/my_scene
 ```
 
 ## 3. Validate Outputs
@@ -31,9 +28,5 @@ The recommended Isaac asset is `exports/scene_nurec_isaac.usdz`. Use `scene_ligh
 ## Dry Run
 
 ```bash
-./scenemill run \
-  -c configs/presets/images_da3_3dgut_isaac.yaml \
-  --input /path/to/images \
-  --workspace runs/dry_run \
-  --dry-run
+./scenemill run --preset da3 --input /path/to/images --workspace runs/dry_run --dry-run
 ```

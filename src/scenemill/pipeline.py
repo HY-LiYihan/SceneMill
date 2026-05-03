@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,11 @@ def _retry_steps(config: dict[str, Any]) -> list[int]:
     return retry_steps
 
 
+def _stage_header(index: int, total: int, label: str) -> None:
+    bar = "─" * max(0, 50 - len(label))
+    print(f"\n[{index}/{total}] {label} {bar}")
+
+
 def run_pipeline(
     *,
     config_path: Path,
@@ -44,6 +50,9 @@ def run_pipeline(
     manifest["gpu"] = query_nvidia_smi()
     write_manifest(manifest, _manifest_path(workspace_path))
 
+    _t0 = time.monotonic()
+
+    _stage_header(1, 6, "Ingest")
     frames = run_ingest(config, workspace_path)
     update_stage(
         manifest,
@@ -55,7 +64,11 @@ def run_pipeline(
 
     last_error = ""
     for frame_step in _retry_steps(config):
-        print(f"\n=== SceneMill frame_step={frame_step} ===")
+        geometry_backend = get_config(config, "geometry.backend", "da3")
+        n_iters = get_config(config, "trainer.n_iterations", 30000)
+        export_formats = get_config(config, "export.formats", ["nurec", "lightfield"])
+
+        _stage_header(2, 6, f"Preprocess  (frame_step={frame_step})")
         dataset = sample_frames_to_colmap_dataset(frames.images_dir, workspace_path, frame_step)
         update_stage(
             manifest,
@@ -69,6 +82,7 @@ def run_pipeline(
         set_artifact(manifest, "colmap_dataset", str(dataset.root))
         write_manifest(manifest, _manifest_path(workspace_path))
 
+        _stage_header(3, 6, f"Geometry    ({geometry_backend})")
         geometry_result = run_geometry(config=config, dataset=dataset, workspace=workspace_path, dry_run=dry_run)
         if geometry_result and geometry_result.returncode != 0:
             last_error = geometry_result.stdout
@@ -94,7 +108,7 @@ def run_pipeline(
             manifest,
             "geometry",
             {
-                "backend": get_config(config, "geometry.backend", "da3"),
+                "backend": geometry_backend,
                 "returncode": geometry_result.returncode if geometry_result else 0,
                 "log": str(geometry_result.log_path) if geometry_result else None,
                 "frame_step": frame_step,
@@ -103,6 +117,7 @@ def run_pipeline(
         update_stage(manifest, "train_prepare", train_prep)
         write_manifest(manifest, _manifest_path(workspace_path))
 
+        _stage_header(4, 6, f"Train       (3dgrut, {n_iters} iters)")
         train_result, checkpoint = run_train(
             config=config,
             dataset_root=train_dataset_root,
@@ -135,6 +150,7 @@ def run_pipeline(
         set_artifact(manifest, "checkpoint", str(checkpoint))
         write_manifest(manifest, _manifest_path(workspace_path))
 
+        _stage_header(5, 6, f"Export      ({', '.join(export_formats)})")
         export_results = run_exports(
             config=config,
             checkpoint=checkpoint,
@@ -155,6 +171,7 @@ def run_pipeline(
         update_stage(manifest, "export", {"returncodes": export_returncodes, "artifacts": export_artifacts})
         set_artifact(manifest, "exports", export_artifacts)
 
+        _stage_header(6, 6, "Validate")
         if not dry_run and get_config(config, "validation.enabled", True):
             validation = validate_outputs(
                 images_dir=frames.images_dir,
@@ -164,8 +181,14 @@ def run_pipeline(
             manifest["validation"] = validation
 
         write_manifest(manifest, _manifest_path(workspace_path))
-        print("\nSceneMill pipeline completed successfully.")
-        print(f"Manifest: {_manifest_path(workspace_path)}")
+
+        elapsed = time.monotonic() - _t0
+        mins, secs = divmod(int(elapsed), 60)
+        print(f"\n✓ Pipeline completed in {mins}m {secs}s")
+        print(f"  Manifest:   {_manifest_path(workspace_path)}")
+        for fmt, path in export_artifacts.items():
+            label = "NuRec" if fmt == "nurec" else "LightField"
+            print(f"  {label + ':':<12}{path}")
         return manifest
 
     manifest["failed"] = True

@@ -19,8 +19,8 @@ def run_geometry(
     geometry = config.get("geometry", {})
     backend = validate_backend(str(geometry.get("backend", "da3")), GEOMETRY_BACKENDS, "geometry")
     if backend == "colmap":
-        colmap_env = str(geometry.get("colmap_env", ""))
-        colmap_bin = str(geometry.get("colmap_bin", "colmap"))
+        colmap_env = str(geometry.get("colmap_env") or "")
+        colmap_bin = str(geometry.get("colmap_bin") or "colmap")
         (dataset.root / "sparse").mkdir(parents=True, exist_ok=True)
         last_result: CommandResult | None = None
         for index, cmd in enumerate(

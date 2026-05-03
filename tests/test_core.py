@@ -10,6 +10,7 @@ from PIL import Image
 import yaml
 
 from scenemill.adapters.colmap import (
+    build_colmap_commands,
     count_colmap_points,
     prepare_colmap_training_dataset,
     prepare_sampled_dataset,
@@ -19,10 +20,14 @@ from scenemill.adapters.colmap import (
 from scenemill.adapters.da3 import build_images_to_colmap_command
 from scenemill.adapters.isaac_usd import rewrite_usdz_alignment, validate_usdz_alignment
 from scenemill.adapters.rosbag import sanitize_topic
+from scenemill.cli import PRESET_ALIASES, _resolve_config
 from scenemill.config import deep_merge, load_config
 from scenemill.pipeline import run_pipeline
 from scenemill.runtime.oom_retry import looks_like_oom
+from scenemill.runtime.subprocess import run_command
+from scenemill.schemas.artifacts import ColmapDataset
 from scenemill.stages import train as train_stage
+from scenemill.stages.ingest import ingest_images
 
 
 def write_aligned_member(archive: zipfile.ZipFile, filename: str, data: bytes) -> None:
@@ -254,6 +259,86 @@ class SceneMillCoreTests(unittest.TestCase):
             loaded = load_config(config, input_path=Path(tmp) / "images", workspace=Path(tmp) / "ws")
             self.assertTrue(str(loaded["input"]["path"]).endswith("images"))
             self.assertTrue(str(loaded["runtime"]["workspace"]).endswith("ws"))
+
+    def test_run_command_streams_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / "out.log"
+            result = run_command(
+                ["python3", "-c", "import sys; print('hello'); sys.stdout.flush()"],
+                cwd=None,
+                log_path=log_path,
+            )
+            self.assertEqual(result.returncode, 0)
+            self.assertIn("hello", log_path.read_text(encoding="utf-8"))
+            self.assertIn("hello", result.stdout)
+
+    def test_colmap_build_commands_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            dataset = ColmapDataset(
+                root=Path(tmp),
+                images_dir=Path(tmp) / "images",
+                sparse_dir=Path(tmp) / "sparse" / "0",
+                frame_step=1,
+                image_count=5,
+            )
+            cmds = build_colmap_commands(dataset, {})
+            self.assertTrue(all(cmd[0] == "colmap" for cmd in cmds))
+
+    def test_colmap_build_commands_with_bin(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            dataset = ColmapDataset(
+                root=Path(tmp),
+                images_dir=Path(tmp) / "images",
+                sparse_dir=Path(tmp) / "sparse" / "0",
+                frame_step=1,
+                image_count=5,
+            )
+            cmds = build_colmap_commands(dataset, {}, colmap_bin="/opt/colmap/bin/colmap")
+            self.assertTrue(all(cmd[0] == "/opt/colmap/bin/colmap" for cmd in cmds))
+            self.assertNotIn("conda", cmds[0])
+
+    def test_colmap_build_commands_with_env(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            dataset = ColmapDataset(
+                root=Path(tmp),
+                images_dir=Path(tmp) / "images",
+                sparse_dir=Path(tmp) / "sparse" / "0",
+                frame_step=1,
+                image_count=5,
+            )
+            cmds = build_colmap_commands(dataset, {}, colmap_env="myenv")
+            for cmd in cmds:
+                self.assertEqual(cmd[:4], ["conda", "run", "-n", "myenv"])
+                self.assertIn("colmap", cmd)
+
+    def test_ingest_deduplicates_images(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            input_dir = root / "input"
+            input_dir.mkdir()
+            content_a = b"fake image A content"
+            content_b = b"fake image B content"
+            (input_dir / "img_001.jpg").write_bytes(content_a)
+            (input_dir / "img_001_dup.jpg").write_bytes(content_a)
+            (input_dir / "img_002.jpg").write_bytes(content_b)
+
+            frameset = ingest_images(input_dir, root / "workspace", deduplicate=True)
+            self.assertEqual(frameset.count, 2)
+            names = {p.name for p in frameset.images_dir.iterdir()}
+            self.assertEqual(len(names), 2)
+
+    def test_preset_shortname_resolves_config(self) -> None:
+        import argparse
+
+        for preset, expected_suffix in [
+            ("da3", "images_da3_3dgut_isaac.yaml"),
+            ("colmap", "images_colmap_3dgut_isaac.yaml"),
+            ("rosbag", "rosbag_da3_3dgut_isaac.yaml"),
+        ]:
+            args = argparse.Namespace(preset=preset, config=None)
+            resolved = _resolve_config(args)
+            self.assertTrue(str(resolved).endswith(expected_suffix), f"preset={preset}: got {resolved}")
+            self.assertEqual(str(resolved), PRESET_ALIASES[preset])
 
 
 if __name__ == "__main__":

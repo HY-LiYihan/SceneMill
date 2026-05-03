@@ -8,6 +8,7 @@ input:
 
 sampling:
   preserve_filenames: true
+  deduplicate: false  # remove exact-duplicate images (by MD5) before processing
 
 geometry:
   backend: da3

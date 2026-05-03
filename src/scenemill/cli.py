@@ -21,12 +21,37 @@ from scenemill.stages.train import run_train
 from scenemill.stages.validate import validate_outputs
 
 
+PRESET_ALIASES: dict[str, str] = {
+    "da3":    "configs/presets/images_da3_3dgut_isaac.yaml",
+    "colmap": "configs/presets/images_colmap_3dgut_isaac.yaml",
+    "rosbag": "configs/presets/rosbag_da3_3dgut_isaac.yaml",
+}
+
+
 def _print_yaml(data: Any) -> None:
     print(yaml.safe_dump(data, sort_keys=False, allow_unicode=True))
 
 
+def _resolve_config(args: argparse.Namespace) -> Path:
+    """Return the config path, resolving --preset to its full path."""
+    preset = getattr(args, "preset", None)
+    config = getattr(args, "config", None)
+    if preset:
+        return Path(PRESET_ALIASES[preset])
+    if config:
+        return config
+    return Path("configs/default.yaml")
+
+
 def _add_common_config_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("-c", "--config", type=Path, default=Path("configs/default.yaml"), help="SceneMill YAML config.")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-c", "--config", type=Path, default=None, help="SceneMill YAML config file.")
+    group.add_argument(
+        "--preset",
+        choices=list(PRESET_ALIASES),
+        metavar="PRESET",
+        help=f"Built-in preset shorthand. One of: {', '.join(PRESET_ALIASES)}.",
+    )
     parser.add_argument("--input", type=Path, default=None, help="Input path override.")
     parser.add_argument("--workspace", type=Path, default=None, help="Workspace path override.")
     parser.add_argument("--dry-run", action="store_true", help="Print commands and write dry-run logs without heavy execution.")
@@ -35,13 +60,13 @@ def _add_common_config_args(parser: argparse.ArgumentParser) -> None:
 
 def cmd_run(args: argparse.Namespace) -> int:
     configure_logging(args.verbose)
-    run_pipeline(config_path=args.config, input_path=args.input, workspace=args.workspace, dry_run=args.dry_run)
+    run_pipeline(config_path=_resolve_config(args), input_path=args.input, workspace=args.workspace, dry_run=args.dry_run)
     return 0
 
 
 def cmd_ingest(args: argparse.Namespace) -> int:
     configure_logging(args.verbose)
-    config = load_config(args.config, input_path=args.input, workspace=args.workspace)
+    config = load_config(_resolve_config(args), input_path=args.input, workspace=args.workspace)
     workspace = Path(config.get("runtime", {}).get("workspace", args.workspace or "runs/scenemill_ingest")).resolve()
     result = run_ingest(config, workspace)
     _print_yaml({"frames_root": str(result.root), "images_dir": str(result.images_dir), "count": result.count})
@@ -50,7 +75,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
 
 def cmd_geometry(args: argparse.Namespace) -> int:
     configure_logging(args.verbose)
-    config = load_config(args.config, input_path=args.input, workspace=args.workspace)
+    config = load_config(_resolve_config(args), input_path=args.input, workspace=args.workspace)
     workspace = Path(config.get("runtime", {}).get("workspace", args.workspace or "runs/scenemill_geometry")).resolve()
     images_dir = Path(args.images_dir).resolve()
     dataset = sample_frames_to_colmap_dataset(images_dir, workspace, args.frame_step)
@@ -68,7 +93,7 @@ def cmd_geometry(args: argparse.Namespace) -> int:
 
 def cmd_train(args: argparse.Namespace) -> int:
     configure_logging(args.verbose)
-    config = load_config(args.config, input_path=args.input, workspace=args.workspace)
+    config = load_config(_resolve_config(args), input_path=args.input, workspace=args.workspace)
     workspace = Path(config.get("runtime", {}).get("workspace", args.workspace or "runs/scenemill_train")).resolve()
     result, checkpoint = run_train(config=config, dataset_root=args.dataset.resolve(), workspace=workspace, dry_run=args.dry_run)
     _print_yaml({"returncode": result.returncode, "log": str(result.log_path), "checkpoint": str(checkpoint)})
@@ -77,7 +102,7 @@ def cmd_train(args: argparse.Namespace) -> int:
 
 def cmd_export(args: argparse.Namespace) -> int:
     configure_logging(args.verbose)
-    config = load_config(args.config, input_path=args.input, workspace=args.workspace)
+    config = load_config(_resolve_config(args), input_path=args.input, workspace=args.workspace)
     workspace = Path(config.get("runtime", {}).get("workspace", args.workspace or "runs/scenemill_export")).resolve()
     results = run_exports(
         config=config,
@@ -108,7 +133,7 @@ def _conda_env_exists(env_name: str) -> bool | None:
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
-    config = load_config(args.config, input_path=args.input, workspace=args.workspace)
+    config = load_config(_resolve_config(args), input_path=args.input, workspace=args.workspace)
     runtime = config.get("runtime", {})
     checks = {
         "python": sys.executable,

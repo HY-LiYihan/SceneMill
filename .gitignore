@@ -51,3 +51,6 @@ run_da3_3dgrut_pipeline.py
 
 # Codex local state may be either a file or directory.
 .codex
+
+# Claude Code local state.
+.claude/

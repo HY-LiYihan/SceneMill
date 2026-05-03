@@ -33,9 +33,30 @@ SceneMill 首版优先适配当前本机 conda/CUDA/Isaac 工作流：
 | CUDA | `/usr/local/cuda-12.4` |
 | 编译器 | `gcc-11` / `g++-11` |
 
+### 创建 conda 环境
+
+**DA3 (`da3_recon`)** — 参考 `third_party/Depth-Anything-3/README.md`，将环境命名为 `da3_recon`：
+
+```bash
+conda create -n da3_recon python=3.10
+conda activate da3_recon
+cd third_party/Depth-Anything-3
+pip install -r requirements.txt
+```
+
+**3DGUT (`3dgrut_recon`)** — 使用 submodule 自带的安装脚本：
+
+```bash
+cd third_party/3dgrut
+bash install_env.sh 3dgrut_recon
+```
+
+**Isaac Sim (`env_isaacsim`)** — 参考 [NVIDIA Isaac Sim 安装文档](https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_python.html)，将环境命名为 `env_isaacsim`。
+
 检查本机状态：
 
 ```bash
 ./scenemill doctor
 ./scripts/doctor.sh
 ```
+

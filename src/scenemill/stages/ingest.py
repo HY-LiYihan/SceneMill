@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 from scenemill.adapters.colmap import list_images, recreate_dir
@@ -7,8 +8,25 @@ from scenemill.adapters.rosbag import export_ros1_images, sanitize_topic
 from scenemill.schemas.artifacts import FrameSet
 
 
-def ingest_images(input_path: Path, workspace: Path) -> FrameSet:
+def _md5(path: Path) -> str:
+    h = hashlib.md5()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def ingest_images(input_path: Path, workspace: Path, *, deduplicate: bool = False) -> FrameSet:
     images = list_images(input_path)
+    if deduplicate:
+        seen: set[str] = set()
+        unique = []
+        for img in images:
+            digest = _md5(img)
+            if digest not in seen:
+                seen.add(digest)
+                unique.append(img)
+        images = unique
     frames_root = workspace / "frames"
     images_dir = frames_root / "images"
     recreate_dir(frames_root)
@@ -43,8 +61,9 @@ def run_ingest(config: dict, workspace: Path) -> FrameSet:
     input_cfg = config.get("input", {})
     input_path = Path(input_cfg["path"]).resolve()
     kind = str(input_cfg.get("kind", "images")).lower()
+    deduplicate = bool(config.get("sampling", {}).get("deduplicate", False))
     if kind == "images":
-        return ingest_images(input_path, workspace)
+        return ingest_images(input_path, workspace, deduplicate=deduplicate)
     if kind in {"rosbag", "ros1_bag"}:
         return ingest_rosbag(input_path, workspace, input_cfg.get("image_topic"))
     raise ValueError(f"Unsupported input.kind: {kind}")
