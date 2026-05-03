@@ -48,11 +48,12 @@ echo "[SceneMill] Installing PyTorch with CUDA 12.4 wheels"
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 
 echo ""
-echo "[SceneMill] Installing DA3 dependencies"
-pip install -r third_party/Depth-Anything-3/requirements.txt
+echo "[SceneMill] Installing DA3 (package + dependencies)"
+pip install -e third_party/Depth-Anything-3
 
 echo ""
-echo "[SceneMill] Installing 3DGUT dependencies"
+echo "[SceneMill] Installing 3DGUT dependencies and package"
+pip install -r third_party/3dgrut/requirements.txt
 cd third_party/3dgrut
 pip install -e .
 cd "${ROOT_DIR}"

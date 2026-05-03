@@ -44,7 +44,7 @@ conda activate scenemill
 conda create -n da3_recon python=3.11 -y
 conda activate da3_recon
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
-pip install -r third_party/Depth-Anything-3/requirements.txt
+pip install -e third_party/Depth-Anything-3
 ```
 
 **3DGUT 环境**（使用子模块自带脚本）：

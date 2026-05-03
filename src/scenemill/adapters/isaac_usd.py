@@ -87,10 +87,10 @@ def inject_initial_camera(path: Path) -> dict[str, Any]:
     stage = Usd.Stage.CreateInMemory()
     stage.GetRootLayer().ImportFromString(usda_data.decode("utf-8"))
 
+    # camera_0000 is always the first alphabetically-sorted image from the 3DGUT export.
+    # The prim lives in the referenced .usdc so it won't resolve in this in-memory stage,
+    # but Isaac Sim will find it at runtime when the full USDZ is loaded.
     camera_path = Sdf.Path("/World/Cameras/camera_0000")
-    if not stage.GetPrimAtPath(camera_path):
-        return {"ok": False, "warning": f"camera prim not found: {camera_path}"}
-
     render_settings = UsdRender.Settings.Define(stage, "/Render/Settings")
     render_settings.GetCameraRel().AddTarget(camera_path)
 

@@ -38,6 +38,17 @@ def run_command(
         return CommandResult(cmd=cmd, returncode=0, stdout="", log_path=log_path)
 
     env = os.environ.copy()
+    # If a virtualenv or non-base conda env is active, its bin dir sits first in PATH
+    # and causes `conda run -n <other_env>` to resolve to the wrong Python.
+    # Strip only the active env's bin dir so conda itself remains reachable.
+    active_env = env.pop("VIRTUAL_ENV", None) or env.get("CONDA_PREFIX", "")
+    conda_base = env.get("_CONDA_ROOT", "")
+    if active_env and active_env != conda_base:
+        active_bin = os.path.join(active_env, "bin")
+        env["PATH"] = os.pathsep.join(
+            p for p in env.get("PATH", "").split(os.pathsep)
+            if p != active_bin
+        )
     if env_overrides:
         env.update(env_overrides)
 

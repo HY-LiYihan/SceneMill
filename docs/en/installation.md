@@ -44,7 +44,7 @@ If you already have separate `da3_recon` and `3dgrut_recon` environments, you ca
 conda create -n da3_recon python=3.11 -y
 conda activate da3_recon
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
-pip install -r third_party/Depth-Anything-3/requirements.txt
+pip install -e third_party/Depth-Anything-3
 ```
 
 **3DGUT environment** (using the bundled install script):
