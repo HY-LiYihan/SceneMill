@@ -32,8 +32,8 @@ export:
 
 runtime:
   workspace: runs/rosbag_da3_3dgut_isaac
-  da3_env: da3_recon
-  grut_env: 3dgrut_recon
+  da3_env: scenemill
+  grut_env: scenemill
   isaac_env: env_isaacsim
   da3_repo: third_party/Depth-Anything-3
   grut_repo: third_party/3dgrut

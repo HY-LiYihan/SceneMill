@@ -1,53 +1,44 @@
 # SceneMill
 
-SceneMill is a robot and Isaac-first reconstruction pipeline. It turns image folders or ROS bags into COLMAP-compatible geometry, 3D Gaussian scenes, and Isaac/Omniverse-ready USDZ assets.
+[![CI](https://github.com/HY-LiYihan/SceneMill/actions/workflows/test.yml/badge.svg)](https://github.com/HY-LiYihan/SceneMill/actions/workflows/test.yml)
+[![Docs](https://github.com/HY-LiYihan/SceneMill/actions/workflows/docs.yml/badge.svg)](https://hy-liyihan.github.io/SceneMill/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-```text
-images / ROS bag -> frames -> DA3 COLMAP export -> 3DGUT training -> NuRec + LightField USDZ
+面向机器人和 Isaac Sim 的本地场景重建 pipeline。输入图片目录或 ROS bag，输出可直接导入 Isaac Sim 的 USDZ 资产。
+
+**[📖 中文文档](https://hy-liyihan.github.io/SceneMill/zh/)** | [English Docs](https://hy-liyihan.github.io/SceneMill/)
+
+```
+图片 / ROS bag  →  DA3 几何重建  →  3DGUT 高斯训练  →  NuRec + LightField USDZ
 ```
 
-## Status
+---
 
-| Path | Status | Notes |
-| --- | --- | --- |
-| Images -> DA3 -> 3DGUT -> NuRec/LightField USDZ | Stable | Primary local workflow. |
-| ROS1 bag -> frames -> DA3 -> 3DGUT -> USDZ | Stable local | Requires `rosbags` and image topics. |
-| COLMAP frontend | Experimental | Requires `colmap` on `PATH`. |
-| VGGT frontend | Reserved | Preset exists; adapter is not enabled yet. |
-| OpenSplat / gsplat backend | Future | Planned backend direction. |
+## 快速开始
 
-## Quick Start
-
-Clone with submodules:
+**第一步：克隆并安装**
 
 ```bash
 git clone --recursive git@github.com:HY-LiYihan/SceneMill.git
 cd SceneMill
+./scripts/create_env.sh          # 创建统一 conda 环境 scenemill
+conda activate scenemill
+./scripts/install_local.sh       # 安装 SceneMill 本体
 ```
 
-Install the local package and docs/dev dependencies:
-
-```bash
-./scripts/install_local.sh
-```
-
-Check the machine:
+**第二步：验证环境**
 
 ```bash
 ./scenemill doctor
-./scripts/doctor.sh
 ```
 
-Run the stable DA3 + 3DGUT + Isaac path:
+**第三步：跑第一个场景**
 
 ```bash
-./scenemill run \
-  -c configs/presets/images_da3_3dgut_isaac.yaml \
-  --input /path/to/images \
-  --workspace runs/my_scene
+./scenemill run --preset da3 --input /path/to/images --workspace runs/my_scene
 ```
 
-Validate outputs:
+**第四步：验证输出**
 
 ```bash
 ./scenemill validate \
@@ -57,63 +48,102 @@ Validate outputs:
   --usdz runs/my_scene/exports/scene_lightfield_isaac.usdz
 ```
 
-Open `exports/scene_nurec_isaac.usdz` first in Isaac Sim. Use `scene_lightfield_isaac.usdz` as the fallback.
+在 Isaac Sim 中打开 `exports/scene_nurec_isaac.usdz`。
 
-## CLI
+---
+
+## 支持矩阵
+
+| 路径 | 状态 | 说明 |
+| --- | --- | --- |
+| 图片 → DA3 → 3DGUT → NuRec/LightField USDZ | **Stable** | 主线 |
+| ROS1 bag → frames → DA3 → 3DGUT → USDZ | **Stable** | 需要 `rosbags` |
+| COLMAP 前端 | Experimental | 需要本机 `colmap` |
+| VGGT 前端 | Reserved | preset 已保留，adapter 尚未启用 |
+
+---
+
+## CLI 速查
 
 ```bash
-./scenemill run       # full configured pipeline
-./scenemill ingest    # image folder or ROS bag to frames/
-./scenemill geometry  # COLMAP-compatible geometry
-./scenemill train     # 3DGUT training
-./scenemill export    # Isaac USDZ export
-./scenemill validate  # output checks
-./scenemill doctor    # local runtime checks
+./scenemill run --preset da3    --input /path/to/images   # 图片主线
+./scenemill run --preset colmap --input /path/to/images   # COLMAP 前端
+./scenemill run --preset rosbag --input /path/to/bag      # ROS bag
+./scenemill run --preset da3    --input /path/to/images --dry-run  # 只打印命令
+
+./scenemill ingest    # 仅导入帧
+./scenemill geometry  # 仅几何重建
+./scenemill train     # 仅训练
+./scenemill export    # 仅导出 USDZ
+./scenemill validate  # 验证输出
+./scenemill doctor    # 检查本机依赖
 ```
 
-Common options:
+常用参数：
 
-```bash
--c, --config      SceneMill YAML config
---input           input path override
---workspace       workspace override
---dry-run         print commands without heavy execution
+```
+--preset PRESET   内置预设：da3 / colmap / rosbag
+-c, --config      自定义 YAML 配置（与 --preset 互斥）
+--input           输入路径
+--workspace       输出目录
+--dry-run         只打印命令，不执行重计算
 ```
 
-## Documentation
+---
 
-Build the MkDocs site locally:
+## 环境要求
+
+| 依赖 | 要求 |
+| --- | --- |
+| GPU | NVIDIA RTX 系列，≥ 8 GB VRAM |
+| CUDA | 12.4 |
+| conda | Miniconda 或 Anaconda |
+| Isaac Sim | 单独安装，用于 USDZ 验证和导入 |
+
+---
+
+## 文档
+
+完整文档见 **[https://hy-liyihan.github.io/SceneMill/](https://hy-liyihan.github.io/SceneMill/)**，包含：
+
+- [安装指南](https://hy-liyihan.github.io/SceneMill/zh/installation/)
+- [快速开始](https://hy-liyihan.github.io/SceneMill/zh/quickstart/)
+- [CLI 参考](https://hy-liyihan.github.io/SceneMill/zh/cli/)
+- [配置预设](https://hy-liyihan.github.io/SceneMill/zh/presets/)
+- [ROS Bag 导入](https://hy-liyihan.github.io/SceneMill/zh/rosbag/)
+- [Isaac USDZ 验证](https://hy-liyihan.github.io/SceneMill/zh/isaac-validation/)
+- [常见问题](https://hy-liyihan.github.io/SceneMill/zh/troubleshooting/)
+
+本地预览文档：
 
 ```bash
-python3 -m pip install -e ".[docs]"
 mkdocs serve
 ```
 
-Documentation is bilingual under `docs/en/` and `docs/zh/` and uses `mkdocs-static-i18n` for the top-bar language switcher. GitHub Pages is built by `.github/workflows/docs.yml`.
+---
 
-## Repository Layout
-
-```text
-configs/       YAML configs and presets
-docs/          MkDocs documentation site
-patches/       optional legacy third-party patches, not applied by default
-scripts/       local setup, doctor, example, and cleanup scripts
-src/           SceneMill Python package
-tests/         unit tests
-third_party/   DA3 and 3DGUT submodules
-runs/          local pipeline outputs, ignored
-tmp/           local scratch space, ignored
-data/          local datasets, ignored
-```
-
-## Local Boundaries
-
-Do not commit robot bags, generated COLMAP datasets, checkpoints, USDZ/USD assets, `aaa/`, `runs/`, `tmp/`, or local Codex state. The repository tracks code, configs, docs, tests, scripts, patches, and submodule pointers only.
-
-## Development
+## 开发
 
 ```bash
-PYTHONPATH=src python3 -m unittest discover -s tests -v
-PYTHONPATH=src python3 -m compileall src tests
+PYTHONPATH=src python -m pytest tests/ -v
+PYTHONPATH=src python -m compileall src tests
 mkdocs build --strict
+```
+
+仓库边界：不提交 bag、checkpoint、USDZ、COLMAP 生成数据或本地运行结果。
+
+---
+
+## 目录结构
+
+```
+configs/       YAML 配置和预设
+docs/          MkDocs 文档站（中英双语）
+scripts/       安装、检查、测试脚本
+src/           SceneMill Python 包
+tests/         单元测试
+third_party/   DA3 和 3DGUT 子模块
+patches/       第三方兼容补丁（默认不应用）
+runs/          本地运行输出（ignored）
+data/          本地数据集（ignored）
 ```

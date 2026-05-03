@@ -1,5 +1,5 @@
 site_name: SceneMill
-site_description: Robot and Isaac-first scene reconstruction pipeline.
+site_description: 面向机器人和 Isaac 的场景重建 pipeline。
 site_url: https://hy-liyihan.github.io/SceneMill/
 repo_name: HY-LiYihan/SceneMill
 repo_url: https://github.com/HY-LiYihan/SceneMill
@@ -7,7 +7,7 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
-  language: en
+  language: zh
   features:
     - navigation.tabs
     - navigation.sections
@@ -28,14 +28,9 @@ plugins:
       reconfigure_material: true
       reconfigure_search: true
       languages:
-        - locale: en
-          name: English
-          default: true
-          build: true
-          site_name: SceneMill
-          site_description: Robot and Isaac-first scene reconstruction pipeline.
         - locale: zh
           name: 简体中文
+          default: true
           build: true
           site_name: SceneMill
           site_description: 面向机器人和 Isaac 的场景重建 pipeline。
@@ -53,6 +48,12 @@ plugins:
             Isaac USDZ Validation: Isaac USDZ 验证
             Troubleshooting: 常见问题
             Development: 开发指南
+        - locale: en
+          name: English
+          default: false
+          build: true
+          site_name: SceneMill
+          site_description: Robot and Isaac-first scene reconstruction pipeline.
   - git-revision-date-localized:
       enabled: !ENV [SCENEMILL_DOCS_GIT_DATES, false]
       enable_creation_date: true
