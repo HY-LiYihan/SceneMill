@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from scenemill.adapters import threedgrut
-from scenemill.adapters.isaac_usd import rewrite_usdz_alignment
+from scenemill.adapters.isaac_usd import inject_initial_camera, rewrite_usdz_alignment
 from scenemill.registry import EXPORT_FORMATS
 from scenemill.runtime.subprocess import CommandResult, run_command
 
@@ -53,5 +53,6 @@ def run_exports(
             alignment = rewrite_usdz_alignment(output)
             if not alignment["ok"]:
                 raise RuntimeError(f"USDZ alignment failed after rewrite: {output}")
+            inject_initial_camera(output)
         results[fmt] = result
     return results

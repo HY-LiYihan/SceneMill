@@ -67,6 +67,45 @@ def validate_usdz_alignment(path: Path) -> dict[str, Any]:
     return {"path": str(path), "ok": all(row["aligned_64"] for row in members), "members": members}
 
 
+def inject_initial_camera(path: Path) -> dict[str, Any]:
+    """Inject a UsdRender.Settings prim pointing to camera_0000 as the initial viewport camera."""
+    try:
+        from pxr import Sdf, Usd, UsdRender
+    except ImportError:
+        return {"ok": False, "warning": "pxr not available — skipping initial camera injection"}
+
+    members: list[tuple[zipfile.ZipInfo, bytes]] = []
+    with zipfile.ZipFile(path, "r") as zf:
+        for info in zf.infolist():
+            members.append((info, zf.read(info.filename)))
+
+    usda_idx = next((i for i, (info, _) in enumerate(members) if info.filename.endswith(".usda")), None)
+    if usda_idx is None:
+        return {"ok": False, "warning": "no .usda found in USDZ"}
+
+    info, usda_data = members[usda_idx]
+    stage = Usd.Stage.CreateInMemory()
+    stage.GetRootLayer().ImportFromString(usda_data.decode("utf-8"))
+
+    camera_path = Sdf.Path("/World/Cameras/camera_0000")
+    if not stage.GetPrimAtPath(camera_path):
+        return {"ok": False, "warning": f"camera prim not found: {camera_path}"}
+
+    render_settings = UsdRender.Settings.Define(stage, "/Render/Settings")
+    render_settings.GetCameraRel().AddTarget(camera_path)
+
+    new_usda = stage.GetRootLayer().ExportToString()
+    members[usda_idx] = (info, new_usda.encode("utf-8"))
+
+    tmp_path = path.with_name(f"{path.name}.cam.tmp")
+    with zipfile.ZipFile(tmp_path, "w", compression=zipfile.ZIP_STORED) as target:
+        for m_info, data in members:
+            _write_aligned_member(target, m_info.filename, data, m_info)
+    tmp_path.replace(path)
+
+    return {"ok": True, "camera": str(camera_path)}
+
+
 def inspect_usd_prims(path: Path) -> dict[str, Any]:
     try:
         from pxr import Usd
