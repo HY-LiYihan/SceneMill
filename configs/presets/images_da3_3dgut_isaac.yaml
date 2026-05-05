@@ -5,6 +5,9 @@ input:
   kind: images
   path:
 
+router:
+  mode: classic
+
 geometry:
   backend: da3
   model: depth-anything/DA3NESTED-GIANT-LARGE-1.1
@@ -29,6 +32,7 @@ export:
 runtime:
   workspace: runs/images_da3_3dgut_isaac
   da3_env: scenemill
+  anysplat_env: anysplat
   grut_env: scenemill
   isaac_env: env_isaacsim
   da3_repo: third_party/Depth-Anything-3

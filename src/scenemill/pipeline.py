@@ -9,10 +9,12 @@ from scenemill.config import get_config, load_config, parse_int_list
 from scenemill.runtime.gpu import query_nvidia_smi
 from scenemill.runtime.oom_retry import looks_like_oom
 from scenemill.schemas.manifest import append_retry, new_manifest, set_artifact, update_stage, write_manifest
+from scenemill.stages.anysplat import run_anysplat_scene
 from scenemill.stages.export import run_exports
 from scenemill.stages.geometry import run_geometry
 from scenemill.stages.ingest import run_ingest
 from scenemill.stages.preprocess import sample_frames_to_colmap_dataset
+from scenemill.stages.router import choose_scene_backend
 from scenemill.stages.train import run_train
 from scenemill.stages.validate import validate_outputs
 
@@ -38,9 +40,12 @@ def run_pipeline(
     config_path: Path,
     input_path: Path | None = None,
     workspace: Path | None = None,
+    router_mode: str | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
     config = load_config(config_path, input_path=input_path, workspace=workspace)
+    if router_mode:
+        config.setdefault("router", {})["mode"] = router_mode
     workspace_path = Path(get_config(config, "runtime.workspace", workspace or "runs/scenemill_run")).resolve()
     workspace_path.mkdir(parents=True, exist_ok=True)
     (workspace_path / "logs").mkdir(parents=True, exist_ok=True)
@@ -62,13 +67,59 @@ def run_pipeline(
     set_artifact(manifest, "frames_dir", str(frames.root))
     write_manifest(manifest, _manifest_path(workspace_path))
 
+    _stage_header(2, 7, "Route")
+    route = choose_scene_backend(config, frames)
+    update_stage(manifest, "router", route.as_dict())
+    set_artifact(manifest, "selected_backend", route.selected_backend)
+    write_manifest(manifest, _manifest_path(workspace_path))
+
+    if route.selected_backend == "anysplat":
+        _stage_header(3, 7, "AnySplat    (low-view)")
+        scene, diagnostics = run_anysplat_scene(
+            config=config,
+            frames=frames,
+            workspace=workspace_path,
+            dry_run=dry_run,
+        )
+        update_stage(manifest, "anysplat", diagnostics)
+        set_artifact(manifest, "anysplat_manifest", str(scene.manifest_path))
+        set_artifact(manifest, "gaussian_ply", str(scene.gaussian_ply))
+        set_artifact(manifest, "exports", {fmt: str(path) for fmt, path in scene.exports.items()})
+        if scene.camera_intrinsics:
+            set_artifact(manifest, "camera_intrinsics", str(scene.camera_intrinsics))
+        if scene.camera_intrinsics_pixels:
+            set_artifact(manifest, "camera_intrinsics_pixels", str(scene.camera_intrinsics_pixels))
+        if scene.camera_extrinsics:
+            set_artifact(manifest, "camera_extrinsics", str(scene.camera_extrinsics))
+        if scene.camera_metadata:
+            manifest["camera"] = scene.camera_metadata
+
+        _stage_header(4, 7, "Validate")
+        if not dry_run and get_config(config, "validation.enabled", True):
+            manifest["validation"] = validate_outputs(
+                images_dir=frames.images_dir,
+                usdz_paths=list(scene.exports.values()),
+            )
+        write_manifest(manifest, _manifest_path(workspace_path))
+
+        elapsed = time.monotonic() - _t0
+        mins, secs = divmod(int(elapsed), 60)
+        print(f"\n✓ Pipeline completed in {mins}m {secs}s")
+        print(f"  Manifest:   {_manifest_path(workspace_path)}")
+        for fmt, path in scene.exports.items():
+            label = "NuRec" if fmt == "nurec" else "LightField"
+            print(f"  {label + ':':<12}{path}")
+        return manifest
+    if route.selected_backend != "classic":
+        raise ValueError(f"Unsupported routed scene backend: {route.selected_backend}")
+
     last_error = ""
     for frame_step in _retry_steps(config):
         geometry_backend = get_config(config, "geometry.backend", "da3")
         n_iters = get_config(config, "trainer.n_iterations", 30000)
         export_formats = get_config(config, "export.formats", ["nurec", "lightfield"])
 
-        _stage_header(2, 6, f"Preprocess  (frame_step={frame_step})")
+        _stage_header(3, 7, f"Preprocess  (frame_step={frame_step})")
         dataset = sample_frames_to_colmap_dataset(frames.images_dir, workspace_path, frame_step)
         update_stage(
             manifest,
@@ -82,7 +133,7 @@ def run_pipeline(
         set_artifact(manifest, "colmap_dataset", str(dataset.root))
         write_manifest(manifest, _manifest_path(workspace_path))
 
-        _stage_header(3, 6, f"Geometry    ({geometry_backend})")
+        _stage_header(4, 7, f"Geometry    ({geometry_backend})")
         geometry_result = run_geometry(config=config, dataset=dataset, workspace=workspace_path, dry_run=dry_run)
         if geometry_result and geometry_result.returncode != 0:
             last_error = geometry_result.stdout
@@ -117,7 +168,7 @@ def run_pipeline(
         update_stage(manifest, "train_prepare", train_prep)
         write_manifest(manifest, _manifest_path(workspace_path))
 
-        _stage_header(4, 6, f"Train       (3dgrut, {n_iters} iters)")
+        _stage_header(5, 7, f"Train       (3dgrut, {n_iters} iters)")
         train_result, checkpoint = run_train(
             config=config,
             dataset_root=train_dataset_root,
@@ -150,7 +201,7 @@ def run_pipeline(
         set_artifact(manifest, "checkpoint", str(checkpoint))
         write_manifest(manifest, _manifest_path(workspace_path))
 
-        _stage_header(5, 6, f"Export      ({', '.join(export_formats)})")
+        _stage_header(6, 7, f"Export      ({', '.join(export_formats)})")
         export_results = run_exports(
             config=config,
             checkpoint=checkpoint,
@@ -171,7 +222,7 @@ def run_pipeline(
         update_stage(manifest, "export", {"returncodes": export_returncodes, "artifacts": export_artifacts})
         set_artifact(manifest, "exports", export_artifacts)
 
-        _stage_header(6, 6, "Validate")
+        _stage_header(7, 7, "Validate")
         if not dry_run and get_config(config, "validation.enabled", True):
             validation = validate_outputs(
                 images_dir=frames.images_dir,

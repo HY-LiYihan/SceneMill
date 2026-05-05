@@ -9,7 +9,7 @@ from typing import Any
 
 import yaml
 
-from scenemill.config import load_config
+from scenemill.config import load_config, resolve_project_path
 from scenemill.logging import configure_logging
 from scenemill.pipeline import run_pipeline
 from scenemill.runtime.gpu import query_nvidia_smi
@@ -22,6 +22,7 @@ from scenemill.stages.validate import validate_outputs
 
 
 PRESET_ALIASES: dict[str, str] = {
+    "auto":   "configs/presets/images_auto_isaac.yaml",
     "da3":    "configs/presets/images_da3_3dgut_isaac.yaml",
     "colmap": "configs/presets/images_colmap_3dgut_isaac.yaml",
     "rosbag": "configs/presets/rosbag_da3_3dgut_isaac.yaml",
@@ -37,10 +38,10 @@ def _resolve_config(args: argparse.Namespace) -> Path:
     preset = getattr(args, "preset", None)
     config = getattr(args, "config", None)
     if preset:
-        return Path(PRESET_ALIASES[preset])
+        return resolve_project_path(PRESET_ALIASES[preset])
     if config:
         return config
-    return Path("configs/default.yaml")
+    return resolve_project_path("configs/default.yaml")
 
 
 def _add_common_config_args(parser: argparse.ArgumentParser) -> None:
@@ -54,19 +55,39 @@ def _add_common_config_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--input", type=Path, default=None, help="Input path override.")
     parser.add_argument("--workspace", type=Path, default=None, help="Workspace path override.")
+    parser.add_argument(
+        "--backend",
+        choices=["auto", "anysplat", "classic"],
+        default=None,
+        help="Scene backend override. auto routes <10 images to AnySplat and >=10 images to classic.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print commands and write dry-run logs without heavy execution.")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logging.")
 
 
+def _load_config_for_args(args: argparse.Namespace) -> dict:
+    config = load_config(_resolve_config(args), input_path=args.input, workspace=args.workspace)
+    backend = getattr(args, "backend", None)
+    if backend:
+        config.setdefault("router", {})["mode"] = backend
+    return config
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     configure_logging(args.verbose)
-    run_pipeline(config_path=_resolve_config(args), input_path=args.input, workspace=args.workspace, dry_run=args.dry_run)
+    run_pipeline(
+        config_path=_resolve_config(args),
+        input_path=args.input,
+        workspace=args.workspace,
+        router_mode=args.backend,
+        dry_run=args.dry_run,
+    )
     return 0
 
 
 def cmd_ingest(args: argparse.Namespace) -> int:
     configure_logging(args.verbose)
-    config = load_config(_resolve_config(args), input_path=args.input, workspace=args.workspace)
+    config = _load_config_for_args(args)
     workspace = Path(config.get("runtime", {}).get("workspace", args.workspace or "runs/scenemill_ingest")).resolve()
     result = run_ingest(config, workspace)
     _print_yaml({"frames_root": str(result.root), "images_dir": str(result.images_dir), "count": result.count})
@@ -75,7 +96,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
 
 def cmd_geometry(args: argparse.Namespace) -> int:
     configure_logging(args.verbose)
-    config = load_config(_resolve_config(args), input_path=args.input, workspace=args.workspace)
+    config = _load_config_for_args(args)
     workspace = Path(config.get("runtime", {}).get("workspace", args.workspace or "runs/scenemill_geometry")).resolve()
     images_dir = Path(args.images_dir).resolve()
     dataset = sample_frames_to_colmap_dataset(images_dir, workspace, args.frame_step)
@@ -93,7 +114,7 @@ def cmd_geometry(args: argparse.Namespace) -> int:
 
 def cmd_train(args: argparse.Namespace) -> int:
     configure_logging(args.verbose)
-    config = load_config(_resolve_config(args), input_path=args.input, workspace=args.workspace)
+    config = _load_config_for_args(args)
     workspace = Path(config.get("runtime", {}).get("workspace", args.workspace or "runs/scenemill_train")).resolve()
     result, checkpoint = run_train(config=config, dataset_root=args.dataset.resolve(), workspace=workspace, dry_run=args.dry_run)
     _print_yaml({"returncode": result.returncode, "log": str(result.log_path), "checkpoint": str(checkpoint)})
@@ -102,7 +123,7 @@ def cmd_train(args: argparse.Namespace) -> int:
 
 def cmd_export(args: argparse.Namespace) -> int:
     configure_logging(args.verbose)
-    config = load_config(_resolve_config(args), input_path=args.input, workspace=args.workspace)
+    config = _load_config_for_args(args)
     workspace = Path(config.get("runtime", {}).get("workspace", args.workspace or "runs/scenemill_export")).resolve()
     results = run_exports(
         config=config,
@@ -133,17 +154,21 @@ def _conda_env_exists(env_name: str) -> bool | None:
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
-    config = load_config(_resolve_config(args), input_path=args.input, workspace=args.workspace)
+    config = _load_config_for_args(args)
     runtime = config.get("runtime", {})
     checks = {
         "python": sys.executable,
         "gpu": query_nvidia_smi(),
         "conda": shutil.which("conda"),
         "da3_env": _conda_env_exists(str(runtime.get("da3_env", "da3_recon"))),
+        "anysplat_env": _conda_env_exists(str(runtime.get("anysplat_env", "anysplat"))),
         "grut_env": _conda_env_exists(str(runtime.get("grut_env", "3dgrut_recon"))),
         "isaac_env": _conda_env_exists(str(runtime.get("isaac_env", "env_isaacsim"))),
-        "da3_repo": Path(runtime.get("da3_repo", "third_party/Depth-Anything-3")).resolve().exists(),
-        "grut_repo": Path(runtime.get("grut_repo", "third_party/3dgrut")).resolve().exists(),
+        "anysplat_repo": resolve_project_path(
+            config.get("anysplat", {}).get("root", "third_party/anysplat")
+        ).exists(),
+        "da3_repo": resolve_project_path(runtime.get("da3_repo", "third_party/Depth-Anything-3")).exists(),
+        "grut_repo": resolve_project_path(runtime.get("grut_repo", "third_party/3dgrut")).exists(),
     }
     _print_yaml(checks)
     return 0 if checks["conda"] else 1
@@ -198,4 +223,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

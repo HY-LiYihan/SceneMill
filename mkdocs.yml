@@ -40,10 +40,14 @@ plugins:
             Overview: 项目介绍
             Installation: 安装
             Quickstart: 快速开始
+            Backend Selection: Backend 选择
             CLI Reference: CLI 参考
             Pipeline Concepts: Pipeline 概念
             Presets: 配置预设
+            Manifest Contract: Manifest 契约
+            AnySplat Low-View: AnySplat 低视角
             DA3 + 3DGUT + Isaac: DA3 + 3DGUT + Isaac
+            image2sim Integration: image2sim 集成
             ROS Bag Ingest: ROS Bag 导入
             Isaac USDZ Validation: Isaac USDZ 验证
             Troubleshooting: 常见问题
@@ -74,10 +78,14 @@ nav:
   - Overview: index.md
   - Installation: installation.md
   - Quickstart: quickstart.md
+  - Backend Selection: backend-selection.md
   - CLI Reference: cli.md
   - Pipeline Concepts: concepts.md
   - Presets: presets.md
+  - Manifest Contract: manifest.md
+  - AnySplat Low-View: workflows/anysplat-low-view.md
   - DA3 + 3DGUT + Isaac: workflows/da3-3dgut-isaac.md
+  - image2sim Integration: image2sim-integration.md
   - ROS Bag Ingest: rosbag.md
   - Isaac USDZ Validation: isaac-validation.md
   - Troubleshooting: troubleshooting.md

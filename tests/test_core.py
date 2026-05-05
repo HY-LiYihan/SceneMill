@@ -17,6 +17,7 @@ from scenemill.adapters.colmap import (
     subsample_colmap_points,
     validate_colmap_dataset,
 )
+from scenemill.adapters.anysplat import build_inference_command, build_transcode_command
 from scenemill.adapters.da3 import build_images_to_colmap_command
 from scenemill.adapters.isaac_usd import rewrite_usdz_alignment, validate_usdz_alignment
 from scenemill.adapters.rosbag import sanitize_topic
@@ -25,9 +26,10 @@ from scenemill.config import deep_merge, load_config
 from scenemill.pipeline import run_pipeline
 from scenemill.runtime.oom_retry import looks_like_oom
 from scenemill.runtime.subprocess import run_command
-from scenemill.schemas.artifacts import ColmapDataset
+from scenemill.schemas.artifacts import ColmapDataset, FrameSet
 from scenemill.stages import train as train_stage
 from scenemill.stages.ingest import ingest_images
+from scenemill.stages.router import choose_scene_backend
 
 
 def write_aligned_member(archive: zipfile.ZipFile, filename: str, data: bytes) -> None:
@@ -117,6 +119,53 @@ class SceneMillCoreTests(unittest.TestCase):
         self.assertIn("da3", cmd)
         da3_index = cmd.index("da3")
         self.assertEqual(cmd[da3_index + 1], "auto")
+
+    def test_router_uses_anysplat_below_ten_images_and_classic_at_ten(self) -> None:
+        frames_low = FrameSet(root=Path("/frames"), images_dir=Path("/frames/images"), count=9)
+        low = choose_scene_backend({"router": {"mode": "auto", "low_view_threshold": 10}}, frames_low)
+        self.assertEqual(low.selected_backend, "anysplat")
+        self.assertEqual(low.reason, "image_count_below_threshold")
+
+        frames_high = FrameSet(root=Path("/frames"), images_dir=Path("/frames/images"), count=10)
+        high = choose_scene_backend({"router": {"mode": "auto", "low_view_threshold": 10}}, frames_high)
+        self.assertEqual(high.selected_backend, "classic")
+        self.assertEqual(high.reason, "image_count_at_or_above_threshold")
+
+        forced = choose_scene_backend({"router": {"mode": "classic", "low_view_threshold": 10}}, frames_low)
+        self.assertEqual(forced.selected_backend, "classic")
+        self.assertEqual(forced.reason, "forced_classic")
+
+    def test_anysplat_command_and_transcode_options(self) -> None:
+        config = {
+            "anysplat": {
+                "root": "/repos/AnySplat",
+                "conda_env": "anysplat_env",
+                "model_id": "lhjiang/anysplat",
+                "direct_single_image": True,
+                "apply_coordinate_transform": True,
+                "lightfield_render_order_hint": "cameraDistance",
+            },
+            "runtime": {"anysplat_env": "anysplat_env", "grut_env": "grut_env"},
+        }
+        cmd = build_inference_command(
+            config=config,
+            input_images_dir=Path("/input/images"),
+            workspace=Path("/workspace/anysplat"),
+            script_path=Path("/repo/scripts/run_anysplat.py"),
+        )
+        self.assertEqual(cmd[:4], ["conda", "run", "-n", "anysplat_env"])
+        self.assertIn("--direct-single-image", cmd)
+        self.assertEqual(cmd[cmd.index("--anysplat-root") + 1], str(Path("/repos/AnySplat").resolve()))
+
+        transcode = build_transcode_command(
+            config=config,
+            gaussian_ply=Path("/workspace/anysplat/gaussians.ply"),
+            output=Path("/workspace/exports/scene_lightfield_isaac.usdz"),
+            export_format="lightfield",
+        )
+        self.assertEqual(transcode[:4], ["conda", "run", "-n", "grut_env"])
+        self.assertIn("--apply-coordinate-transform", transcode)
+        self.assertEqual(transcode[transcode.index("--render-order-hint") + 1], "cameraDistance")
 
     def test_colmap_validation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -226,6 +275,7 @@ class SceneMillCoreTests(unittest.TestCase):
                             "n_iterations": 1,
                         },
                         "export": {"enabled": True, "formats": ["nurec", "lightfield"], "output_dir": None},
+                        "router": {"mode": "classic"},
                         "runtime": {
                             "workspace": str(root / "workspace"),
                             "da3_env": "da3_recon",
@@ -251,6 +301,46 @@ class SceneMillCoreTests(unittest.TestCase):
             self.assertTrue(manifest_path.exists())
             self.assertEqual(manifest["stages"]["preprocess"]["sampled_images"], 2)
             self.assertIn("exports", manifest["artifacts"])
+
+    def test_pipeline_auto_routes_low_view_to_anysplat_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            images = root / "images"
+            images.mkdir()
+            Image.new("RGB", (8, 6), color=(255, 0, 0)).save(images / "000.png")
+
+            config = root / "config.yaml"
+            config.write_text(
+                yaml.safe_dump(
+                    {
+                        "input": {"kind": "images", "path": str(images)},
+                        "router": {"mode": "auto", "low_view_threshold": 10},
+                        "anysplat": {
+                            "root": "third_party/anysplat",
+                            "conda_env": "anysplat",
+                            "model_id": "lhjiang/anysplat",
+                            "workspace_name": "anysplat",
+                            "direct_single_image": True,
+                            "export_formats": ["nurec", "lightfield"],
+                        },
+                        "export": {"enabled": True, "formats": ["nurec", "lightfield"], "output_dir": None},
+                        "runtime": {
+                            "workspace": str(root / "workspace"),
+                            "anysplat_env": "anysplat",
+                            "grut_env": "scenemill",
+                            "grut_repo": "third_party/3dgrut",
+                        },
+                        "validation": {"enabled": True},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            manifest = run_pipeline(config_path=config, dry_run=True)
+            self.assertEqual(manifest["stages"]["router"]["selected_backend"], "anysplat")
+            self.assertNotIn("preprocess", manifest["stages"])
+            self.assertIn("gaussian_ply", manifest["artifacts"])
+            self.assertTrue(str(manifest["artifacts"]["exports"]["nurec"]).endswith("scene_nurec_isaac.usdz"))
 
     def test_load_config_overrides(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -331,6 +421,7 @@ class SceneMillCoreTests(unittest.TestCase):
         import argparse
 
         for preset, expected_suffix in [
+            ("auto", "images_auto_isaac.yaml"),
             ("da3", "images_da3_3dgut_isaac.yaml"),
             ("colmap", "images_colmap_3dgut_isaac.yaml"),
             ("rosbag", "rosbag_da3_3dgut_isaac.yaml"),
@@ -338,7 +429,7 @@ class SceneMillCoreTests(unittest.TestCase):
             args = argparse.Namespace(preset=preset, config=None)
             resolved = _resolve_config(args)
             self.assertTrue(str(resolved).endswith(expected_suffix), f"preset={preset}: got {resolved}")
-            self.assertEqual(str(resolved), PRESET_ALIASES[preset])
+            self.assertTrue(resolved.is_absolute())
 
 
 if __name__ == "__main__":

@@ -9,8 +9,10 @@
 **[📖 中文文档](https://hy-liyihan.github.io/SceneMill/zh/)** | [English Docs](https://hy-liyihan.github.io/SceneMill/)
 
 ```
-图片 / ROS bag  →  DA3 几何重建  →  3DGUT 高斯训练  →  NuRec + LightField USDZ
+图片 / ROS bag  →  auto 路由  →  AnySplat 或 DA3/3DGUT  →  NuRec + LightField USDZ
 ```
+
+默认规则：少于 10 张图片走 AnySplat 快速低视角重建；10 张及以上走经典 DA3/COLMAP + 3DGUT 主线。
 
 ---
 
@@ -35,7 +37,7 @@ conda activate scenemill
 **第三步：跑第一个场景**
 
 ```bash
-./scenemill run --preset da3 --input /path/to/images --workspace runs/my_scene
+./scenemill run --preset auto --input /path/to/images --workspace runs/my_scene
 ```
 
 **第四步：验证输出**
@@ -56,7 +58,9 @@ conda activate scenemill
 
 | 路径 | 状态 | 说明 |
 | --- | --- | --- |
-| 图片 → DA3 → 3DGUT → NuRec/LightField USDZ | **Stable** | 主线 |
+| 图片 → auto router → NuRec/LightField USDZ | **Stable** | 默认入口 |
+| 少图/单图 → AnySplat → Gaussian PLY → USDZ | **Stable local** | 低视角快速重建 |
+| 图片 → DA3 → 3DGUT → NuRec/LightField USDZ | **Stable** | 多视角经典主线 |
 | ROS1 bag → frames → DA3 → 3DGUT → USDZ | **Stable** | 需要 `rosbags` |
 | COLMAP 前端 | Experimental | 需要本机 `colmap` |
 | VGGT 前端 | Reserved | preset 已保留，adapter 尚未启用 |
@@ -66,7 +70,10 @@ conda activate scenemill
 ## CLI 速查
 
 ```bash
-./scenemill run --preset da3    --input /path/to/images   # 图片主线
+./scenemill run --preset auto   --input /path/to/images   # 自动选择 AnySplat 或 classic
+./scenemill run --preset auto   --backend anysplat --input /path/to/images
+./scenemill run --preset auto   --backend classic  --input /path/to/images
+./scenemill run --preset da3    --input /path/to/images   # DA3/3DGUT classic
 ./scenemill run --preset colmap --input /path/to/images   # COLMAP 前端
 ./scenemill run --preset rosbag --input /path/to/bag      # ROS bag
 ./scenemill run --preset da3    --input /path/to/images --dry-run  # 只打印命令
@@ -82,8 +89,9 @@ conda activate scenemill
 常用参数：
 
 ```
---preset PRESET   内置预设：da3 / colmap / rosbag
+--preset PRESET   内置预设：auto / da3 / colmap / rosbag
 -c, --config      自定义 YAML 配置（与 --preset 互斥）
+--backend         覆盖 backend：auto / anysplat / classic
 --input           输入路径
 --workspace       输出目录
 --dry-run         只打印命令，不执行重计算
@@ -108,6 +116,7 @@ conda activate scenemill
 
 - [安装指南](https://hy-liyihan.github.io/SceneMill/zh/installation/)
 - [快速开始](https://hy-liyihan.github.io/SceneMill/zh/quickstart/)
+- [Backend 选择](https://hy-liyihan.github.io/SceneMill/zh/backend-selection/)
 - [CLI 参考](https://hy-liyihan.github.io/SceneMill/zh/cli/)
 - [配置预设](https://hy-liyihan.github.io/SceneMill/zh/presets/)
 - [ROS Bag 导入](https://hy-liyihan.github.io/SceneMill/zh/rosbag/)
@@ -142,7 +151,7 @@ docs/          MkDocs 文档站（中英双语）
 scripts/       安装、检查、测试脚本
 src/           SceneMill Python 包
 tests/         单元测试
-third_party/   DA3 和 3DGUT 子模块
+third_party/   AnySplat、DA3 和 3DGUT 子模块
 patches/       第三方兼容补丁（默认不应用）
 runs/          本地运行输出（ignored）
 data/          本地数据集（ignored）

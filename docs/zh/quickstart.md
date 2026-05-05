@@ -23,18 +23,30 @@ conda activate scenemill
 ## 第二步：跑第一个场景
 
 ```bash
-./scenemill run --preset da3 --input /path/to/images --workspace runs/my_scene
+./scenemill run --preset auto --input /path/to/images --workspace runs/my_scene
 ```
 
-运行过程中终端会实时输出各阶段进度：
+`auto` 会先统计图片数量。少于 10 张图时走 AnySplat，10 张及以上走经典 DA3/3DGUT 主线。
+
+少图时终端会输出：
 
 ```
-[1/6] Ingest ────────────────────────────────────────────
-[2/6] Preprocess  (frame_step=1) ────────────────────────
-[3/6] Geometry    (da3) ─────────────────────────────────
-[4/6] Train       (3dgrut, 30000 iters) ─────────────────
-[5/6] Export      (nurec, lightfield) ───────────────────
-[6/6] Validate ──────────────────────────────────────────
+[1/7] Ingest
+[2/7] Route
+[3/7] AnySplat    (low-view)
+[4/7] Validate
+```
+
+多图时终端会输出：
+
+```
+[1/7] Ingest
+[2/7] Route
+[3/7] Preprocess  (frame_step=1)
+[4/7] Geometry    (da3)
+[5/7] Train       (3dgrut, 30000 iters)
+[6/7] Export      (nurec, lightfield)
+[7/7] Validate
 
 ✓ Pipeline completed in 42m 13s
   Manifest:   runs/my_scene/scene_manifest.yaml
@@ -71,6 +83,9 @@ conda activate scenemill
 ## 其他 preset
 
 ```bash
+./scenemill run --preset auto   --input /path/to/images --workspace runs/auto_scene
+./scenemill run --preset auto   --backend anysplat --input /path/to/images --workspace runs/anysplat_scene
+./scenemill run --preset auto   --backend classic  --input /path/to/images --workspace runs/classic_scene
 ./scenemill run --preset colmap --input /path/to/images --workspace runs/colmap_scene
 ./scenemill run --preset rosbag --input /path/to/bag    --workspace runs/bag_scene
 ```

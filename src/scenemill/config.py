@@ -8,6 +8,7 @@ import yaml
 
 
 ConfigDict = dict[str, Any]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def deep_merge(base: ConfigDict, override: ConfigDict) -> ConfigDict:
@@ -58,6 +59,13 @@ def require_config(config: ConfigDict, dotted_key: str) -> Any:
     return value
 
 
+def resolve_project_path(value: str | Path) -> Path:
+    path = Path(value).expanduser()
+    if path.is_absolute():
+        return path.resolve()
+    return (PROJECT_ROOT / path).resolve()
+
+
 def parse_int_list(value: Any, *, key: str) -> list[int]:
     if value is None:
         return []
@@ -67,4 +75,3 @@ def parse_int_list(value: Any, *, key: str) -> list[int]:
     if isinstance(value, list):
         return [int(item) for item in value]
     raise ValueError(f"{key} must be a comma-separated string or list of integers")
-

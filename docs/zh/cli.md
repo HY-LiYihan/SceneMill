@@ -19,8 +19,9 @@ SceneMill 统一入口：
 常用参数：
 
 ```bash
---preset PRESET   内置 preset 简称：da3、colmap、rosbag。
+--preset PRESET   内置 preset 简称：auto、da3、colmap、rosbag。
 -c, --config      SceneMill YAML 配置（与 --preset 互斥）。
+--backend         覆盖场景 backend：auto、anysplat、classic。
 --input           覆盖输入路径。
 --workspace       覆盖输出 workspace。
 --dry-run         只打印命令和写日志，不执行重任务。
@@ -29,6 +30,9 @@ SceneMill 统一入口：
 `--preset` 是推荐的调用方式：
 
 ```bash
+./scenemill run --preset auto   --input /path/to/images
+./scenemill run --preset auto   --backend anysplat --input /path/to/images
+./scenemill run --preset auto   --backend classic  --input /path/to/images
 ./scenemill run --preset da3    --input /path/to/images
 ./scenemill run --preset colmap --input /path/to/images
 ./scenemill run --preset rosbag --input /path/to/bag
@@ -39,4 +43,3 @@ SceneMill 统一入口：
 ```bash
 ./scenemill run -c my_config.yaml --input /path/to/images
 ```
-

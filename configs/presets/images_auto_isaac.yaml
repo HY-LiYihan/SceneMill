@@ -4,14 +4,13 @@ project:
 input:
   kind: images
   path:
-  image_topic:
 
 sampling:
   preserve_filenames: true
-  deduplicate: false  # remove exact-duplicate images (by MD5) before processing
+  deduplicate: false
 
 router:
-  mode: auto              # auto | anysplat | classic
+  mode: auto
   low_view_threshold: 10
   low_view_backend: anysplat
   classic_backend: classic
@@ -24,9 +23,7 @@ anysplat:
   workspace_name: anysplat
   direct_single_image: true
   save_preview: false
-  export_formats:
-    - nurec
-    - lightfield
+  export_formats: [nurec, lightfield]
   apply_coordinate_transform: true
   lightfield_render_order_hint: cameraDistance
   linear_srgb: false
@@ -37,28 +34,23 @@ geometry:
   process_res: 504
   process_res_method: upper_bound_resize
   use_ray_pose: true
-  colmap_env:         # conda env name for colmap (used when backend=colmap)
-  colmap_bin: colmap  # colmap executable path or name
 
 trainer:
   backend: 3dgrut
   config_name: apps/colmap_3dgut.yaml
   experiment_name: da3_3dgut_scene
-  dataset_downsample_factor: 1
-  max_colmap_points:
+  dataset_downsample_factor: 4
+  max_colmap_points: 200000
   point_sample_seed: 42
   n_iterations: 30000
-  optimizer_type:
 
 export:
   enabled: true
-  formats:
-    - nurec
-    - lightfield
+  formats: [nurec, lightfield]
   output_dir:
 
 runtime:
-  workspace: runs/scenemill_run
+  workspace: runs/images_auto_isaac
   da3_env: scenemill
   anysplat_env: anysplat
   grut_env: scenemill

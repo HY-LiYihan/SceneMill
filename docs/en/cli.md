@@ -19,8 +19,9 @@ SceneMill exposes one CLI entrypoint:
 Common options:
 
 ```bash
---preset PRESET   Built-in preset shorthand: da3, colmap, rosbag.
+--preset PRESET   Built-in preset shorthand: auto, da3, colmap, rosbag.
 -c, --config      SceneMill YAML config (mutually exclusive with --preset).
+--backend         Scene backend override: auto, anysplat, classic.
 --input           Input path override.
 --workspace       Workspace path override.
 --dry-run         Print commands and write dry-run logs without heavy execution.
@@ -29,6 +30,9 @@ Common options:
 `--preset` is the recommended way to invoke the pipeline:
 
 ```bash
+./scenemill run --preset auto   --input /path/to/images
+./scenemill run --preset auto   --backend anysplat --input /path/to/images
+./scenemill run --preset auto   --backend classic  --input /path/to/images
 ./scenemill run --preset da3    --input /path/to/images
 ./scenemill run --preset colmap --input /path/to/images
 ./scenemill run --preset rosbag --input /path/to/bag
@@ -39,4 +43,3 @@ Use `-c` when you need a custom config file:
 ```bash
 ./scenemill run -c my_config.yaml --input /path/to/images
 ```
-
